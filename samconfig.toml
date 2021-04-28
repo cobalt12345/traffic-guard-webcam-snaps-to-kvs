@@ -1,0 +1,10 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "WebcamSnaps2Kws"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-bnc1lgnamqwf"
+s3_prefix = "WebcamSnaps2Kws"
+region = "eu-central-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"

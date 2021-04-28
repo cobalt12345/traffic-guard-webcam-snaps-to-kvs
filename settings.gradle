@@ -1,0 +1,2 @@
+rootProject.name = 'traffic-guard-webcam-snaps-to-kws'
+include 'WebcamSnaps2KwsFunction'
