@@ -1,4 +1,4 @@
-# traffic-guard-webcam-snaps-to-kws
+# traffic-guard-webcam-snaps-to-kvs
 
 This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
 
@@ -54,7 +54,7 @@ The first command will build the source of your application. The second command 
 Build your application with the `sam build` command.
 
 ```bash
-traffic-guard-webcam-snaps-to-kws$ sam build
+traffic-guard-webcam-snaps-to-kvs$ sam build
 ```
 
 The SAM CLI installs dependencies defined in `HelloWorldFunction/build.gradle`, creates a deployment package, and saves it in the `.aws-sam/build` folder.
@@ -66,7 +66,7 @@ Run functions locally and invoke them with the `sam local invoke` command.
 Don't forget to update the event.json detail with the fields you want to set from your schema.aws.a4b.roomstatechange.RoomStateChange object
 
 ```bash
-traffic-guard-webcam-snaps-to-kws$ sam local invoke HelloWorldFunction --event events/event.json
+traffic-guard-webcam-snaps-to-kvs$ sam local invoke HelloWorldFunction --event events/event.json
 ```
 
 The SAM CLI reads the application template to determine the EventBridge rule pattern and the functions that they invoke as a target. The `Events` property on each function's definition includes the source and detail-type of the types of events that will invoke the function.
@@ -94,7 +94,7 @@ To simplify troubleshooting, SAM CLI has a command called `sam logs`. `sam logs`
 `NOTE`: This command works for all AWS Lambda functions; not just the ones you deploy using SAM.
 
 ```bash
-traffic-guard-webcam-snaps-to-kws$ sam logs -n HelloWorldFunction --stack-name traffic-guard-webcam-snaps-to-kws --tail
+traffic-guard-webcam-snaps-to-kvs$ sam logs -n HelloWorldFunction --stack-name traffic-guard-webcam-snaps-to-kvs --tail
 ```
 
 You can find more information and examples about filtering Lambda function logs in the [SAM CLI Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-logging.html).
@@ -104,7 +104,7 @@ You can find more information and examples about filtering Lambda function logs 
 Tests are defined in the `HelloWorldFunction/src/test` folder in this project.
 
 ```bash
-traffic-guard-webcam-snaps-to-kws$ cd HelloWorldFunction
+traffic-guard-webcam-snaps-to-kvs$ cd HelloWorldFunction
 HelloWorldFunction$ gradle test
 ```
 
@@ -113,7 +113,7 @@ HelloWorldFunction$ gradle test
 To delete the sample application that you created, use the AWS CLI. Assuming you used your project name for the stack name, you can run the following:
 
 ```bash
-aws cloudformation delete-stack --stack-name traffic-guard-webcam-snaps-to-kws
+aws cloudformation delete-stack --stack-name traffic-guard-webcam-snaps-to-kvs
 ```
 
 ## Resources

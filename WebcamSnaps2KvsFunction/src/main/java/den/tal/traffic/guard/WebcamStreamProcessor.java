@@ -110,11 +110,11 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         }
     }
 
-    private void sendToKws(KinesisVideoFrame kinesisVideoFrame) {
+    private void sendToKvs(KinesisVideoFrame kinesisVideoFrame) {
         if (null == kinesisVideoFrame) {
             log.warn("KinesisVideoFrame is null");
         } else {
-            log.info("Send frame {} to KWS", kinesisVideoFrame);
+            log.info("Send frame {} to KVS", kinesisVideoFrame);
         }
     }
 }

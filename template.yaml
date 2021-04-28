@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  traffic-guard-webcam-snaps-to-kws
+  traffic-guard-webcam-snaps-to-kvs
 
-  Sample SAM Template for traffic-guard-webcam-snaps-to-kws
+  Sample SAM Template for traffic-guard-webcam-snaps-to-kvs
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -51,14 +51,14 @@ Resources:
 #      ManagedPolicyArns:
 #        - arn:aws:iam::aws:policy/AmazonKinesisVideoStreamsFullAccess
 
-  WebcamSnaps2KwsFunction:
+  WebcamSnaps2KvsFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     DeletionPolicy: Delete
     Properties:
       Policies:
         - AmazonKinesisVideoStreamsFullAccess
         - AWSLambdaExecute
-      CodeUri: ./WebcamSnaps2KwsFunction
+      CodeUri: ./WebcamSnaps2KvsFunction
       Handler: den.tal.traffic.guard.WebcamStreamProcessor::handleRequest
       Runtime: java11
       MemorySize: 512
@@ -69,22 +69,22 @@ Resources:
         ProcessWebcamSnapshots:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /process-webcam-stream/{kws-name}
+            Path: /process-webcam-stream/{kvs-name}
             Method: post
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  WebcamSnaps2KwsFunction:
-    Description: "WebcamSnaps2Kws Lambda Function ARN"
-    Value: !GetAtt WebcamSnaps2KwsFunction.Arn
+  WebcamSnaps2KvsFunction:
+    Description: "WebcamSnaps2Kvs Lambda Function ARN"
+    Value: !GetAtt WebcamSnaps2KvsFunction.Arn
   TrafficGuardStreamProducerUnauth:
-    Description: "Implicit IAM Role created for WebcamSnaps2Kws function"
-    Value: !GetAtt WebcamSnaps2KwsFunctionRole.Arn
+    Description: "Implicit IAM Role created for WebcamSnaps2Kvs function"
+    Value: !GetAtt WebcamSnaps2KvsFunctionRole.Arn
   TrafficGuardIdentityPoolId:
     Description: "JS clients are authorized via identity pool. No keys!"
     Value: !Ref IdPool
   ProcessWebcamSnapshotsApi:
-    Description: "API Gateway endpoint URL for Prod stage for WebcamSnaps2Kws function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${DeploymentMode}/process-webcam-stream/{kws-name}/"
+    Description: "API Gateway endpoint URL for Prod stage for WebcamSnaps2Kvs function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${DeploymentMode}/process-webcam-stream/{kvs-name}/"
