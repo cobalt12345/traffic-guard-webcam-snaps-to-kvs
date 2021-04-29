@@ -51,6 +51,43 @@ Resources:
 #      ManagedPolicyArns:
 #        - arn:aws:iam::aws:policy/AmazonKinesisVideoStreamsFullAccess
 
+  WebcamSnaps2KvsApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      BinaryMediaTypes:
+        - 'image/jpeg'
+        - 'application/json'
+      Description: "RESTful API via API Gateway"
+      DisableExecuteApiEndpoint:
+      EndpointConfiguration:
+        Types:
+          - EDGE
+      Name: WebcamSnapshots2KvsApi
+  Method:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: False
+      HttpMethod: OPTIONS
+      ResourceId: !GetAtt WebcamSnaps2KvsApi.RootResourceId
+      RestApiId: !Ref WebcamSnaps2KvsApi
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        ContentHandling: CONVERT_TO_BINARY
+        IntegrationResponses:
+          - ContentHandling: CONVERT_TO_TEXT
+            StatusCode: 400
+          - CotenetHandling: CONVERT_TO_TEXT
+            StatusCode: 200
+
+        ConnectionType: INTERNET
+
+
+
+
+
+
+
   WebcamSnaps2KvsFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     DeletionPolicy: Delete
