@@ -75,6 +75,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess
       MaxSessionDuration: 3600
+
   WebcamSnaps2KvsFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     DeletionPolicy: Delete
@@ -90,6 +91,7 @@ Resources:
       Handler: den.tal.traffic.guard.WebcamStreamProcessor::handleRequest
       Runtime: java11
       MemorySize: 512
+      PackageType: Zip
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
           PARAM1: VALUE
@@ -114,6 +116,23 @@ Resources:
           - EDGE
       Name: WebcamSnapshots2KvsApi
 
+  KinesisVideoStreamResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt WebcamSnaps2KvsApi.RootResourceId
+      PathPart: streams
+      RestApiId: !Ref WebcamSnaps2KvsApi
+
+#  GatewayResponse:
+#    Type: AWS::ApiGateway::GatewayResponse
+#    Properties:
+#      ResponseParameters:
+#        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+#        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type'"
+#      ResponseType: MISSING_AUTHENTICATION_TOKEN
+#      RestApiId: !Ref RestApi
+#      StatusCode: '404
+
   MethodOptions:
     Type: AWS::ApiGateway::Method
     DeletionPolicy: Delete
@@ -129,7 +148,20 @@ Resources:
         IntegrationHttpMethod: OPTIONS
         IntegrationResponses:
           - StatusCode: 200
-      ResourceId: !GetAtt WebcamSnaps2KvsApi.RootResourceId
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: '*'
+              method.response.header.Access-Control-Allow-Headers: 'Content-Type'
+              method.response.header.Access-Control-Allow-Methods: 'OPTIONS,POST'
+        RequestParameters:
+          integration.request.path.kvs-name: method.request.path.kvs-name
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: True
+            method.response.header.Access-Control-Allow-Headers: True
+            method.response.header.Access-Control-Allow-Methods: True
+
+      ResourceId: !Ref KinesisVideoStreamResource
       RestApiId: !Ref WebcamSnaps2KvsApi
 #
 #  MethodPost:
