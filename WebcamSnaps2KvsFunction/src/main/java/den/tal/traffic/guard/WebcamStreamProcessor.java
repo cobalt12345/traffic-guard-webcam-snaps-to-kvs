@@ -34,7 +34,7 @@ import static com.amazonaws.kinesisvideo.producer.Time.HUNDREDS_OF_NANOS_IN_A_MI
  * @author Denis Talochkin
  */
 @Slf4j
-public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>
+public class WebcamStreamProcessor implements RequestHandler<BodyPayload, String>
 {
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final H264Encoder encoder = H264Encoder.createH264Encoder();
@@ -42,33 +42,23 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     private int processedFrameNum = -1;
 
     @Override
-    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
-        Utils.logEnvironment(request, context, gson);
-        processImages(request.getBody());
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
-        response.setIsBase64Encoded(false);
-        response.setStatusCode(200);
-        HashMap<String, String> headers = new HashMap<>();
-        headers.put("Access-Control-Allow-Headers", "Content-Type");
-        headers.put("Access-Control-Allow-Origin", "*");
-        headers.put("Access-Control-Allow-Methods", "OPTIONS,POST,GET");
-        response.setHeaders(headers);
-        response.setBody("OK");
+    public String handleRequest(BodyPayload requestBody, Context context) {
+        Utils.logEnvironment(requestBody, context, gson);
+        processImages(requestBody);
 
-        return response;
+        return "200 Ok";
     }
 
-    private void processImages(String jsonBody) {
-        BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
+    private void processImages(BodyPayload payload) {
         for (int i = 0; i < payload.getFrames().length;i++, processedFrameNum++) {
             log.debug("Process image. Batch ordinal num: {}. Absolute num: {}",
                     i, processedFrameNum);
 
             final String image64base = payload.getFrames()[i];
-            final Date timestamp = payload.getTimestamps()[i];
+            final long timestamp = payload.getTimestamps()[i];
             BufferedImage bufferedImage = convertToImage(image64base);
             KinesisVideoFrame kinesisVideoFrame = convertToFrame(bufferedImage,
-                    timestamp, processedFrameNum);
+                    new Date(timestamp), processedFrameNum);
         }
 
     }

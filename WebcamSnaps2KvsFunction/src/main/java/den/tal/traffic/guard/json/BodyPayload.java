@@ -1,10 +1,12 @@
 package den.tal.traffic.guard.json;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.Date;
 
+@NoArgsConstructor
 public class BodyPayload {
 
     @Getter @Setter
@@ -14,5 +16,5 @@ public class BodyPayload {
     private float framerate;
 
     @Getter @Setter
-    private Date timestamps [];
+    private long timestamps [];
 }
