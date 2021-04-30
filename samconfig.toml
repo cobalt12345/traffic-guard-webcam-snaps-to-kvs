@@ -6,6 +6,6 @@ stack_name = "WebcamSnaps2Kvs"
 s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-bnc1lgnamqwf"
 s3_prefix = "WebcamSnaps2Kvs"
 region = "eu-central-1"
-confirm_changeset = true
-capabilities = "CAPABILITY_IAM"
-parameter_overrides = "DeploymentMode=\"Stage\" Fps=\"25\""
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+parameter_overrides = "ApiGatewayRoleName=\"TrafficGuardApiGateway\" Deployment=\"Stage\" Fps=\"25\""

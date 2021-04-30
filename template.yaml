@@ -11,7 +11,11 @@ Globals:
   Api:
     Cors: "'*'"
 Parameters:
-  DeploymentMode:
+  ApiGatewayRoleName:
+    Description: "Role assumed by ApiGateway to call serverless function."
+    Type: String
+    Default: "TrafficGuardApiGateway"
+  Deployment:
     Description: "Use different endpoints for different environments. Possible values: Prod | Stage"
     Type: String
     Default: 'Stage'
@@ -21,39 +25,6 @@ Parameters:
     Default: 25
 
 Resources:
-  IdPool:
-    Type: AWS::Cognito::IdentityPool
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      IdentityPoolName: 'TrafficGuardIdentityPool'
-      AllowUnauthenticatedIdentities: true
-
-  RoleAttachment:
-    Type: AWS::Cognito::IdentityPoolRoleAttachment
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      IdentityPoolId: !Ref IdPool
-      Roles:
-        unauthenticated: !GetAtt TrafficGuardStreamProducerUnauth.Arn
-
-  TrafficGuardStreamProducerUnauth:
-    Type: AWS::IAM::Role
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Description: Allows unauthenticated web app users to stream into lambda.
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Federated: cognito-identity.amazonaws.com
-            Action: sts:AssumeRoleWithWebIdentity
-  #      ManagedPolicyArns:
-  #        - arn:aws:iam::aws:policy/AmazonKinesisVideoStreamsFullAccess
-
   ApiGatewayAssumedRole:
     Type: AWS::IAM::Role
     DeletionPolicy: Delete
@@ -61,6 +32,7 @@ Resources:
     Description: >
       This role is assumed by ApiGateway to call lambda function.
     Properties:
+      RoleName: !Join ["-", [!Ref ApiGatewayRoleName, !Ref "AWS::Region"]]
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -68,12 +40,13 @@ Resources:
             Principal:
               Service:
                 - apigateway.amazonaws.com
-                - iam.amazonaws.com
             Action:
               - sts:AssumeRole
       Path: /
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonAPIGatewayInvokeFullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+        - arn:aws:iam::aws:policy/AmazonKinesisVideoStreamsFullAccess
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
       MaxSessionDuration: 3600
 
   WebcamSnaps2KvsFunction:
@@ -84,9 +57,6 @@ Resources:
       Description: >
         Lambda function receives a request containing a bunch of JPEG images, then it converts them into h264 frames
         and sends to KVS.
-      Policies:
-        - AmazonKinesisVideoStreamsFullAccess
-        - AWSLambdaExecute
       CodeUri: ./WebcamSnaps2KvsFunction
       Handler: den.tal.traffic.guard.WebcamStreamProcessor::handleRequest
       Runtime: java11
@@ -94,12 +64,12 @@ Resources:
       PackageType: Zip
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
-          PARAM1: VALUE
+          FPS: !Ref Fps
       Events:
         ApiEvent:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /process-webcam-stream/{kvs-name}
+            Path: /process-webcam-stream
             Method: post
 
   WebcamSnaps2KvsApi:
@@ -123,6 +93,39 @@ Resources:
       PathPart: streams
       RestApiId: !Ref WebcamSnaps2KvsApi
 
+  MethodPost:
+    Type: AWS::ApiGateway::Method
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      ApiKeyRequired: False
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        ConnectionType: INTERNET
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt WebcamSnaps2KvsFunction.Arn
+        Credentials: !GetAtt ApiGatewayAssumedRole.Arn
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+      ResourceId: !Ref KinesisVideoStreamResource
+      RestApiId: !Ref WebcamSnaps2KvsApi
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+        - MethodPost
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RestApiId: !Ref WebcamSnaps2KvsApi
+      StageName: !Ref Deployment
+
 #  GatewayResponse:
 #    Type: AWS::ApiGateway::GatewayResponse
 #    Properties:
@@ -133,60 +136,37 @@ Resources:
 #      RestApiId: !Ref RestApi
 #      StatusCode: '404
 
-  MethodOptions:
-    Type: AWS::ApiGateway::Method
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      ApiKeyRequired: False
-      AuthorizationType: NONE
-      HttpMethod: OPTIONS
-      Integration:
-        ConnectionType: INTERNET
-        Type: MOCK
-        Credentials: !GetAtt ApiGatewayAssumedRole.Arn
-        IntegrationHttpMethod: OPTIONS
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: '*'
-              method.response.header.Access-Control-Allow-Headers: 'Content-Type'
-              method.response.header.Access-Control-Allow-Methods: 'OPTIONS,POST'
-        RequestParameters:
-          integration.request.path.kvs-name: method.request.path.kvs-name
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: True
-            method.response.header.Access-Control-Allow-Headers: True
-            method.response.header.Access-Control-Allow-Methods: True
-
-      ResourceId: !Ref KinesisVideoStreamResource
-      RestApiId: !Ref WebcamSnaps2KvsApi
-#
-#  MethodPost:
+#  MethodOptions:
 #    Type: AWS::ApiGateway::Method
 #    DeletionPolicy: Delete
 #    UpdateReplacePolicy: Delete
 #    Properties:
 #      ApiKeyRequired: False
 #      AuthorizationType: NONE
-#      HttpMethod: POST
+#      HttpMethod: OPTIONS
 #      Integration:
 #        ConnectionType: INTERNET
-#        Type: AWS
-#        arn:aws:apigateway:${AWS::Region}:lambda:path//2015-03-31/functions/arn:aws:lambda:${AWS::Region}:account-id:function:lambda-function-name/invocations
-#        Uri: arn:aws:apigateway:${AWS::Region}:lambda:path/process-webcam-stream/{kvs-name}
+#        Type: MOCK
 #        Credentials: !GetAtt ApiGatewayAssumedRole.Arn
-#        IntegrationHttpMethod: POST
+#        IntegrationHttpMethod: OPTIONS
 #        IntegrationResponses:
 #          - StatusCode: 200
 #            ResponseParameters:
 #              method.response.header.Access-Control-Allow-Origin: '*'
-#              method.response.multivalueheader.Access-Control-Allow-Headers: 'Content-Type'
-#              method.response.multivalueheader.Access-Control-Allow-Methods: 'OPTIONS,POST'
-#      ResourceId: !GetAtt WebcamSnaps2KvsApi.RootResourceId
+#              method.response.header.Access-Control-Allow-Headers: 'Content-Type'
+#              method.response.header.Access-Control-Allow-Methods: 'OPTIONS,POST'
+#        RequestParameters:
+#          integration.request.path.kvs-name: method.request.path.kvs-name
+#      MethodResponses:
+#        - StatusCode: 200
+#          ResponseParameters:
+#            method.response.header.Access-Control-Allow-Origin: true
+#            method.response.header.Access-Control-Allow-Headers: true
+#            method.response.header.Access-Control-Allow-Methods: true
+#
+#      ResourceId: !Ref KinesisVideoStreamResource
 #      RestApiId: !Ref WebcamSnaps2KvsApi
+##
 #
 #  RequestModel:
 #    Type: AWS::ApiGateway::Model
@@ -212,13 +192,16 @@ Resources:
 #            items:
 #              type: integer
 #
-#Outputs:
-#  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-#  # Find out more about other implicit resources you can reference within SAM
-#  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-#  WebcamSnaps2KvsFunction:
-#    Description: "WebcamSnaps2Kvs Lambda Function ARN"
-#    Value: !GetAtt WebcamSnaps2KvsFunction.Arn
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  WebcamSnaps2KvsFunction:
+    Description: "WebcamSnaps2Kvs Lambda Function ARN"
+    Value: !GetAtt WebcamSnaps2KvsFunction.Arn
+  ApiGatewayAssumedRole:
+    Description: "Role assumed by ApiGateway to call WebcamSnaps2Kvs lambda"
+    Value: !Ref ApiGatewayAssumedRole
 #  TrafficGuardStreamProducerUnauth:
 #    Description: "Implicit IAM Role created for WebcamSnaps2Kvs function"
 #    Value: !GetAtt WebcamSnaps2KvsFunctionRole.Arn

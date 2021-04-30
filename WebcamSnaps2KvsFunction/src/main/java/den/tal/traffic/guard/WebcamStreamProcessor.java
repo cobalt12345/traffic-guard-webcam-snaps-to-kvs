@@ -34,7 +34,7 @@ import static com.amazonaws.kinesisvideo.producer.Time.HUNDREDS_OF_NANOS_IN_A_MI
  * @author Denis Talochkin
  */
 @Slf4j
-public class WebcamStreamProcessor implements RequestHandler<BodyPayload, String>
+public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>
 {
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final H264Encoder encoder = H264Encoder.createH264Encoder();
@@ -42,25 +42,38 @@ public class WebcamStreamProcessor implements RequestHandler<BodyPayload, String
     private int processedFrameNum = -1;
 
     @Override
-    public String handleRequest(BodyPayload requestBody, Context context) {
-        Utils.logEnvironment(requestBody, context, gson);
-        processImages(requestBody);
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
+        Utils.logEnvironment(request, context, gson);
+        processImages(request.getBody());
+        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
+        response.setIsBase64Encoded(false);
+        response.setStatusCode(200);
+        HashMap<String, String> headers = new HashMap<>();
+        headers.put("Access-Control-Allow-Headers", "Content-Type");
+        headers.put("Access-Control-Allow-Origin", "*");
+        headers.put("Access-Control-Allow-Methods", "OPTIONS,POST");
+        response.setHeaders(headers);
+        response.setBody("OK");
 
-        return "200 Ok";
+        return response;
     }
 
-    private void processImages(BodyPayload payload) {
-        for (int i = 0; i < payload.getFrames().length;i++, processedFrameNum++) {
-            log.debug("Process image. Batch ordinal num: {}. Absolute num: {}",
-                    i, processedFrameNum);
+    private void processImages(String jsonBody) {
+        if (jsonBody != null && !jsonBody.isEmpty()) {
+            BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
+            for (int i = 0; i < payload.getFrames().length; i++, processedFrameNum++) {
+                log.debug("Process image. Batch ordinal num: {}. Absolute num: {}",
+                        i, processedFrameNum);
 
-            final String image64base = payload.getFrames()[i];
-            final long timestamp = payload.getTimestamps()[i];
-            BufferedImage bufferedImage = convertToImage(image64base);
-            KinesisVideoFrame kinesisVideoFrame = convertToFrame(bufferedImage,
-                    new Date(timestamp), processedFrameNum);
+                final String image64base = payload.getFrames()[i];
+                final long timestamp = payload.getTimestamps()[i];
+                BufferedImage bufferedImage = convertToImage(image64base);
+                KinesisVideoFrame kinesisVideoFrame = convertToFrame(bufferedImage,
+                        new Date(timestamp), processedFrameNum);
+            }
+        } else {
+            log.debug("Method body is empty. No images for processing.");
         }
-
     }
 
     private BufferedImage convertToImage(String image64base) {
