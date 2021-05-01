@@ -23,6 +23,10 @@ Parameters:
     Description: "Frames per second"
     Type: Number
     Default: 25
+  URLDataFormat:
+    Description: "Frames are encoded by html canvas into URL data using predefined format."
+    Type: String
+    Default: 'data:image/jpeg;base64,'
 
 Resources:
   ApiGatewayAssumedRole:
@@ -65,6 +69,7 @@ Resources:
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
           FPS: !Ref Fps
+          URLDataFormat: !Ref URLDataFormat
       Events:
         ApiEvent:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -77,8 +82,8 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      BinaryMediaTypes:
-        - 'image/jpeg'
+#      BinaryMediaTypes:
+#        - 'image/jpeg'
       Description: "RESTful API via API Gateway"
       DisableExecuteApiEndpoint: False
       EndpointConfiguration:
@@ -126,72 +131,6 @@ Resources:
       RestApiId: !Ref WebcamSnaps2KvsApi
       StageName: !Ref Deployment
 
-#  GatewayResponse:
-#    Type: AWS::ApiGateway::GatewayResponse
-#    Properties:
-#      ResponseParameters:
-#        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
-#        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type'"
-#      ResponseType: MISSING_AUTHENTICATION_TOKEN
-#      RestApiId: !Ref RestApi
-#      StatusCode: '404
-
-#  MethodOptions:
-#    Type: AWS::ApiGateway::Method
-#    DeletionPolicy: Delete
-#    UpdateReplacePolicy: Delete
-#    Properties:
-#      ApiKeyRequired: False
-#      AuthorizationType: NONE
-#      HttpMethod: OPTIONS
-#      Integration:
-#        ConnectionType: INTERNET
-#        Type: MOCK
-#        Credentials: !GetAtt ApiGatewayAssumedRole.Arn
-#        IntegrationHttpMethod: OPTIONS
-#        IntegrationResponses:
-#          - StatusCode: 200
-#            ResponseParameters:
-#              method.response.header.Access-Control-Allow-Origin: '*'
-#              method.response.header.Access-Control-Allow-Headers: 'Content-Type'
-#              method.response.header.Access-Control-Allow-Methods: 'OPTIONS,POST'
-#        RequestParameters:
-#          integration.request.path.kvs-name: method.request.path.kvs-name
-#      MethodResponses:
-#        - StatusCode: 200
-#          ResponseParameters:
-#            method.response.header.Access-Control-Allow-Origin: true
-#            method.response.header.Access-Control-Allow-Headers: true
-#            method.response.header.Access-Control-Allow-Methods: true
-#
-#      ResourceId: !Ref KinesisVideoStreamResource
-#      RestApiId: !Ref WebcamSnaps2KvsApi
-##
-#
-#  RequestModel:
-#    Type: AWS::ApiGateway::Model
-#    Properties:
-#      ContentType: 'application/json'
-#      Description: >
-#        Lambda function request containing a bunch of images from Webcam.
-#      Name: WebcamImagesBunch
-#      RestApiId: !Ref WebcamSnaps2KvsApi
-#      Schema:
-#        $schema: 'http://json-schema.org/draft-04/schema#'
-#        title: RequestModel
-#        type: object
-#        properties:
-#          frames:
-#            type: array
-#            items:
-#              type: string
-#          framerate:
-#            type: integer
-#          timestamps:
-#            type: array
-#            items:
-#              type: integer
-#
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
@@ -202,12 +141,6 @@ Outputs:
   ApiGatewayAssumedRole:
     Description: "Role assumed by ApiGateway to call WebcamSnaps2Kvs lambda"
     Value: !Ref ApiGatewayAssumedRole
-#  TrafficGuardStreamProducerUnauth:
-#    Description: "Implicit IAM Role created for WebcamSnaps2Kvs function"
-#    Value: !GetAtt WebcamSnaps2KvsFunctionRole.Arn
-#  TrafficGuardIdentityPoolId:
-#    Description: "JS clients are authorized via identity pool. No keys!"
-#    Value: !Ref IdPool
-#  ProcessWebcamSnapshotsApi:
-#    Description: "API Gateway endpoint URL for Prod stage for WebcamSnaps2Kvs function"
-#    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${DeploymentMode}/process-webcam-stream/{kvs-name}/"
+  ProcessWebcamSnapshotsApi:
+    Description: "API Gateway endpoint URL for Prod stage for WebcamSnaps2Kvs function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Deployment}/process-webcam-stream/{kvs-name}/"

@@ -44,7 +44,8 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
         Utils.logEnvironment(request, context, gson);
-        processImages(request.getBody());
+        final String imageFormat = System.getenv().get("URLDataFormat");
+        processImages(request.getBody(), imageFormat);
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
         response.setIsBase64Encoded(false);
         response.setStatusCode(200);
@@ -58,7 +59,8 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         return response;
     }
 
-    private void processImages(String jsonBody) {
+
+    void processImages(String jsonBody, String imageFormat) {
         if (jsonBody != null && !jsonBody.isEmpty()) {
             BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
             for (int i = 0; i < payload.getFrames().length; i++, processedFrameNum++) {
@@ -67,7 +69,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
 
                 final String image64base = payload.getFrames()[i];
                 final long timestamp = payload.getTimestamps()[i];
-                BufferedImage bufferedImage = convertToImage(image64base);
+                BufferedImage bufferedImage = convertToImage(normalize(image64base, imageFormat));
                 KinesisVideoFrame kinesisVideoFrame = convertToFrame(bufferedImage,
                         new Date(timestamp), processedFrameNum);
             }
@@ -76,7 +78,11 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         }
     }
 
-    private BufferedImage convertToImage(String image64base) {
+    String normalize(String image64base, String imageFormat) {
+        return image64base.substring(imageFormat.length());
+    }
+
+    BufferedImage convertToImage(String image64base) {
         byte[] image = Base64.decode(image64base);
         try (ByteArrayInputStream is = new ByteArrayInputStream(image)) {
             BufferedImage bufferedImage = ImageIO.read(is);
@@ -89,7 +95,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
             return null;
         }
     }
-    private KinesisVideoFrame convertToFrame(BufferedImage bufferedImage, Date timestamp, int frameIndex) {
+    KinesisVideoFrame convertToFrame(BufferedImage bufferedImage, Date timestamp, int frameIndex) {
         if (null == bufferedImage) {
             log.warn("BufferedImage is null");
 
