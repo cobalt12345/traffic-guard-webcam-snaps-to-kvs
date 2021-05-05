@@ -36,15 +36,17 @@ import static com.amazonaws.kinesisvideo.producer.Time.HUNDREDS_OF_NANOS_IN_A_MI
 @Slf4j
 public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>
 {
+    private static final String URL_DATA_FORMAT_VAR = "URLDataFormat";
+    private static final String KVS_STREAM_NAME_VAR = "KVSStreamName";
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final H264Encoder encoder = H264Encoder.createH264Encoder();
     private final ColorSpace SUPPORTED_COLOR_SPACE = ColorSpace.YUV420J;
-    private int processedFrameNum = -1;
+    private int processedFrameNum = 0;
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
-        Utils.logEnvironment(request, context, gson);
-        final String imageFormat = System.getenv().get("URLDataFormat");
+        //Utils.logEnvironment(request, context, gson);
+        final String imageFormat = System.getenv().get(URL_DATA_FORMAT_VAR);
         processImages(request.getBody(), imageFormat);
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
         response.setIsBase64Encoded(false);
@@ -72,6 +74,8 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
                 BufferedImage bufferedImage = convertToImage(normalize(image64base, imageFormat));
                 KinesisVideoFrame kinesisVideoFrame = convertToFrame(bufferedImage,
                         new Date(timestamp), processedFrameNum);
+
+                sendToKvs(kinesisVideoFrame);
             }
         } else {
             log.debug("Method body is empty. No images for processing.");

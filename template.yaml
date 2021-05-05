@@ -7,7 +7,7 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 20
+    Timeout: 40
   Api:
     Cors: "'*'"
 Parameters:
@@ -27,6 +27,10 @@ Parameters:
     Description: "Frames are encoded by html canvas into URL data using predefined format."
     Type: String
     Default: 'data:image/jpeg;base64,'
+  KVSStreamName:
+    Description: "Target Kinesis Video Steam name"
+    Type: String
+    Default: 'traffic-guard'
 
 Resources:
   ApiGatewayAssumedRole:
@@ -70,20 +74,19 @@ Resources:
         Variables:
           FPS: !Ref Fps
           URLDataFormat: !Ref URLDataFormat
-      Events:
-        ApiEvent:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /process-webcam-stream
-            Method: post
+          KVSStreamName: !Ref KVSStreamName
+#      Events:
+#        ApiEvent:
+#          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+#          Properties:
+#            Path: /process-webcam-stream
+#            Method: post
 
   WebcamSnaps2KvsApi:
     Type: AWS::ApiGateway::RestApi
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-#      BinaryMediaTypes:
-#        - 'image/jpeg'
       Description: "RESTful API via API Gateway"
       DisableExecuteApiEndpoint: False
       EndpointConfiguration:
@@ -118,6 +121,8 @@ Resources:
           - StatusCode: 200
       MethodResponses:
         - StatusCode: 200
+      RequestParameters:
+        method.request.path.kvsName: True
       ResourceId: !Ref KinesisVideoStreamResource
       RestApiId: !Ref WebcamSnaps2KvsApi
 
@@ -143,4 +148,4 @@ Outputs:
     Value: !Ref ApiGatewayAssumedRole
   ProcessWebcamSnapshotsApi:
     Description: "API Gateway endpoint URL for Prod stage for WebcamSnaps2Kvs function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Deployment}/process-webcam-stream/{kvs-name}/"
+    Value: !Sub "https://${WebcamSnaps2KvsApi}.execute-api.${AWS::Region}.amazonaws.com/${Deployment}/streams"

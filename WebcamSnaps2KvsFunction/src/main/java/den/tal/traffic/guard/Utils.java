@@ -17,7 +17,7 @@ class Utils {
     }
 
     public static int getFps() {
-        String sFps = System.getenv().get("Fps");
+        String sFps = System.getenv().get("FPS");
 
         return Integer.parseInt(sFps);
     }
