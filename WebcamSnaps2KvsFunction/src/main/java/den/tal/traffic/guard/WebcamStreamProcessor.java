@@ -1,5 +1,7 @@
 package den.tal.traffic.guard;
 
+import com.amazonaws.kinesisvideo.client.KinesisVideoClient;
+import com.amazonaws.kinesisvideo.common.exception.KinesisVideoException;
 import com.amazonaws.kinesisvideo.producer.KinesisVideoFrame;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
@@ -9,6 +11,7 @@ import com.amazonaws.util.Base64;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import den.tal.traffic.guard.json.BodyPayload;
+import den.tal.traffic.guard.kvs.utils.Utils;
 import lombok.extern.slf4j.Slf4j;
 import org.jcodec.codecs.h264.H264Encoder;
 import org.jcodec.common.model.ColorSpace;
@@ -20,9 +23,12 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 import static com.amazonaws.kinesisvideo.producer.FrameFlags.FRAME_FLAG_KEY_FRAME;
 import static com.amazonaws.kinesisvideo.producer.FrameFlags.FRAME_FLAG_NONE;
@@ -34,17 +40,51 @@ import static com.amazonaws.kinesisvideo.producer.Time.HUNDREDS_OF_NANOS_IN_A_MI
  * @author Denis Talochkin
  */
 @Slf4j
-public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>
+public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>,
+        WebCam
 {
     private static final String URL_DATA_FORMAT_VAR = "URLDataFormat";
-    private static final String KVS_STREAM_NAME_VAR = "KVSStreamName";
+    private static final String QUEUE_LENGTH_VAR = "WebcamStreamQueueLength";
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final H264Encoder encoder = H264Encoder.createH264Encoder();
     private final ColorSpace SUPPORTED_COLOR_SPACE = ColorSpace.YUV420J;
     private int processedFrameNum = 0;
+    private boolean isFilmingStarted = false;
+    private BlockingQueue<BufferedImage> queue = new ArrayBlockingQueue<>(Integer.parseInt(System.getenv()
+            .get(QUEUE_LENGTH_VAR)));
+
+    private KinesisVideoClient kinesisVideoClient;
+
+    @Override
+    public void startFilming() {
+        isFilmingStarted = true;
+    }
+
+    @Override
+    public void stopFilming() {
+        isFilmingStarted = false;
+    }
+
+    @Override
+    public BlockingQueue<BufferedImage> getFilm() {
+
+        return queue;
+    }
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
+        try {
+            if (kinesisVideoClient == null) {
+                kinesisVideoClient = Utils.getKvsClient(Utils.getRegion(), Utils.getAssumedRoleArn(),
+                        this, Utils.getKvsName());
+                kinesisVideoClient.startAllMediaSources();
+            }
+        } catch (KinesisVideoException kvex) {
+            log.error("Cannot process request", kvex);
+
+            throw new RuntimeException(kvex);
+        }
+
         //Utils.logEnvironment(request, context, gson);
         final String imageFormat = System.getenv().get(URL_DATA_FORMAT_VAR);
         processImages(request.getBody(), imageFormat);
@@ -72,10 +112,10 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
                 final String image64base = payload.getFrames()[i];
                 final long timestamp = payload.getTimestamps()[i];
                 BufferedImage bufferedImage = convertToImage(normalize(image64base, imageFormat));
-                KinesisVideoFrame kinesisVideoFrame = convertToFrame(bufferedImage,
-                        new Date(timestamp), processedFrameNum);
-
-                sendToKvs(kinesisVideoFrame);
+                boolean imageAdded = queue.offer(bufferedImage);
+                if (!imageAdded) {
+                    log.warn("Image wasn't added!");
+                }
             }
         } else {
             log.debug("Method body is empty. No images for processing.");
@@ -99,35 +139,5 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
             return null;
         }
     }
-    KinesisVideoFrame convertToFrame(BufferedImage bufferedImage, Date timestamp, int frameIndex) {
-        if (null == bufferedImage) {
-            log.warn("BufferedImage is null");
 
-            return null;
-
-        } else {
-            long timestampTimeMs = timestamp.getTime();
-            Picture picture = AWTUtil.fromBufferedImage(bufferedImage, SUPPORTED_COLOR_SPACE);
-            int buffSize = encoder.estimateBufferSize(picture);
-            ByteBuffer byteBuffer = ByteBuffer.allocate(buffSize);
-            ByteBuffer encodedBytes = encoder.encodeFrame(picture, byteBuffer).getData();
-            final int flag = frameIndex % Utils.getFps() == 0 ? FRAME_FLAG_KEY_FRAME : FRAME_FLAG_NONE;
-            KinesisVideoFrame kinesisVideoFrame = new KinesisVideoFrame(frameIndex,
-                    flag,
-                    timestampTimeMs * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
-                    timestampTimeMs * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
-                    Utils.getFrameDurationInMS() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
-                    encodedBytes);
-
-            return kinesisVideoFrame;
-        }
-    }
-
-    private void sendToKvs(KinesisVideoFrame kinesisVideoFrame) {
-        if (null == kinesisVideoFrame) {
-            log.warn("KinesisVideoFrame is null");
-        } else {
-            log.info("Send frame {} to KVS", kinesisVideoFrame);
-        }
-    }
 }

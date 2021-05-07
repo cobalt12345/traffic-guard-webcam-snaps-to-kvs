@@ -28,9 +28,17 @@ Parameters:
     Type: String
     Default: 'data:image/jpeg;base64,'
   KVSStreamName:
-    Description: "Target Kinesis Video Steam name"
+    Description: "Target Kinesis Video Stream name"
     Type: String
     Default: 'traffic-guard'
+  KVSRegion:
+    Description: "Region of target KVS"
+    Type: String
+    Default: 'eu-central-1'
+  WebcamStreamQueueLength:
+    Description: "Internally used queue length"
+    Type: Number
+    Default: 100
 
 Resources:
   ApiGatewayAssumedRole:
@@ -75,12 +83,18 @@ Resources:
           FPS: !Ref Fps
           URLDataFormat: !Ref URLDataFormat
           KVSStreamName: !Ref KVSStreamName
-#      Events:
-#        ApiEvent:
-#          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-#          Properties:
-#            Path: /process-webcam-stream
-#            Method: post
+          KVSRegion: !Ref KVSRegion
+          ApiGwAssumedRole: !GetAtt ApiGatewayAssumedRole.Arn
+          WebcamStreamQueueLength: 100
+      Layers:
+        - !Ref ProducerLibrary
+
+  ProducerLibrary:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - java11
+      ContentUri: WebcamSnaps2KvsFunction/src/dll
 
   WebcamSnaps2KvsApi:
     Type: AWS::ApiGateway::RestApi
