@@ -34,6 +34,7 @@ public class WebCamMediaSource implements MediaSource {
         this.webCam = webCam;
         kinesisVideoStreamName = kvsName;
         this.frameConverter = frameConverter;
+        webCamMediaSourceConfiguration = frameConverter.getConfiguration();
     }
 
     @Override

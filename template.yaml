@@ -1,20 +1,24 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: >
-  traffic-guard-webcam-snaps-to-kvs is a lambda function that is accessible via ApiGateway. It receives a video
-  stream (jpg images), encodes them with MKV and sends to Kinesis Video Stream (KVS).
-
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
     Timeout: 40
   Api:
     Cors: "'*'"
+Description: >
+  traffic-guard-webcam-snaps-to-kvs is a lambda function that is accessible via ApiGateway. It receives a video
+  stream (jpg images), encodes them with MKV and sends to Kinesis Video Stream (KVS).
+
 Parameters:
   ApiGatewayRoleName:
     Description: "Role assumed by ApiGateway to call serverless function."
     Type: String
     Default: "TrafficGuardApiGateway"
+  SnapsToKvsFunctionRoleName:
+    Description: "Role assumed by 'SnapshotToKvs' lambda function."
+    Type: String
+    Default: 'TrafficGuardSnapsToKvs'
   Deployment:
     Description: "Use different endpoints for different environments. Possible values: Prod | Stage"
     Type: String
@@ -61,8 +65,30 @@ Resources:
       Path: /
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
-        - arn:aws:iam::aws:policy/AmazonKinesisVideoStreamsFullAccess
         - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+      MaxSessionDuration: 3600
+
+  FunctionAssumedRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Description: >
+      This role is assumed by lambda function.
+    Properties:
+      RoleName: !Join ["-", [!Ref SnapsToKvsFunctionRoleName, !Ref "AWS::Region"]]
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonKinesisVideoStreamsFullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       MaxSessionDuration: 3600
 
   WebcamSnaps2KvsFunction:
@@ -73,10 +99,12 @@ Resources:
       Description: >
         Lambda function receives a request containing a bunch of JPEG images, then it converts them into h264 frames
         and sends to KVS.
+      Role: !GetAtt FunctionAssumedRole.Arn
       CodeUri: ./WebcamSnaps2KvsFunction
       Handler: den.tal.traffic.guard.WebcamStreamProcessor::handleRequest
       Runtime: java11
       MemorySize: 512
+      Tracing: Active
       PackageType: Zip
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
@@ -84,17 +112,19 @@ Resources:
           URLDataFormat: !Ref URLDataFormat
           KVSStreamName: !Ref KVSStreamName
           KVSRegion: !Ref KVSRegion
-          ApiGwAssumedRole: !GetAtt ApiGatewayAssumedRole.Arn
           WebcamStreamQueueLength: 100
       Layers:
-        - !Ref ProducerLibrary
+        - !Ref StreamProducerNativeLibrary
 
-  ProducerLibrary:
+  StreamProducerNativeLibrary:
     Type: AWS::Serverless::LayerVersion
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
+      RetentionPolicy: Delete #no versioning is needed
       CompatibleRuntimes:
         - java11
-      ContentUri: WebcamSnaps2KvsFunction/src/dll
+      ContentUri: dll
 
   WebcamSnaps2KvsApi:
     Type: AWS::ApiGateway::RestApi
@@ -109,6 +139,8 @@ Resources:
       Name: WebcamSnapshots2KvsApi
 
   KinesisVideoStreamResource:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Type: AWS::ApiGateway::Resource
     Properties:
       ParentId: !GetAtt WebcamSnaps2KvsApi.RootResourceId
@@ -133,8 +165,10 @@ Resources:
         IntegrationHttpMethod: POST
         IntegrationResponses:
           - StatusCode: 200
+          - StatusCode: 500
       MethodResponses:
         - StatusCode: 200
+        - StatusCode: 500
       RequestParameters:
         method.request.path.kvsName: True
       ResourceId: !Ref KinesisVideoStreamResource
@@ -142,10 +176,10 @@ Resources:
 
   ApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
-    DependsOn:
-        - MethodPost
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
+    DependsOn:
+        - MethodPost
     Properties:
       RestApiId: !Ref WebcamSnaps2KvsApi
       StageName: !Ref Deployment
@@ -160,6 +194,9 @@ Outputs:
   ApiGatewayAssumedRole:
     Description: "Role assumed by ApiGateway to call WebcamSnaps2Kvs lambda"
     Value: !Ref ApiGatewayAssumedRole
+  FunctionAssumedRole:
+    Description: "Role assumed by lambda function to call KVS."
+    Value: !Ref FunctionAssumedRole
   ProcessWebcamSnapshotsApi:
     Description: "API Gateway endpoint URL for Prod stage for WebcamSnaps2Kvs function"
     Value: !Sub "https://${WebcamSnaps2KvsApi}.execute-api.${AWS::Region}.amazonaws.com/${Deployment}/streams"

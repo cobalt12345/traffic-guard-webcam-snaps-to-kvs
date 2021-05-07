@@ -2,7 +2,6 @@ package den.tal.traffic.guard;
 
 import com.amazonaws.kinesisvideo.client.KinesisVideoClient;
 import com.amazonaws.kinesisvideo.common.exception.KinesisVideoException;
-import com.amazonaws.kinesisvideo.producer.KinesisVideoFrame;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
@@ -15,24 +14,13 @@ import den.tal.traffic.guard.kvs.utils.Utils;
 import lombok.extern.slf4j.Slf4j;
 import org.jcodec.codecs.h264.H264Encoder;
 import org.jcodec.common.model.ColorSpace;
-import org.jcodec.common.model.Picture;
-import org.jcodec.scale.AWTUtil;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-
-import static com.amazonaws.kinesisvideo.producer.FrameFlags.FRAME_FLAG_KEY_FRAME;
-import static com.amazonaws.kinesisvideo.producer.FrameFlags.FRAME_FLAG_NONE;
-import static com.amazonaws.kinesisvideo.producer.Time.HUNDREDS_OF_NANOS_IN_A_MILLISECOND;
 
 /**
  * Current lambda function processes JPEG images, converts them to h264 frames and sends to AWS.
@@ -73,32 +61,31 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
-        try {
-            if (kinesisVideoClient == null) {
-                kinesisVideoClient = Utils.getKvsClient(Utils.getRegion(), Utils.getAssumedRoleArn(),
-                        this, Utils.getKvsName());
-                kinesisVideoClient.startAllMediaSources();
-            }
-        } catch (KinesisVideoException kvex) {
-            log.error("Cannot process request", kvex);
 
-            throw new RuntimeException(kvex);
+        if (kinesisVideoClient == null) {
+            try {
+                kinesisVideoClient = Utils.getKvsClient(Utils.getRegion(), this, Utils.getKvsName());
+                kinesisVideoClient.startAllMediaSources();
+            } catch (KinesisVideoException kvex) {
+                log.error("Cannot create KVS client", kvex);
+                var response = Utils.getResponse(500, gson.toJson(kvex));
+
+                return response;
+            }
         }
 
-        //Utils.logEnvironment(request, context, gson);
-        final String imageFormat = System.getenv().get(URL_DATA_FORMAT_VAR);
-        processImages(request.getBody(), imageFormat);
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
-        response.setIsBase64Encoded(false);
-        response.setStatusCode(200);
-        HashMap<String, String> headers = new HashMap<>();
-        headers.put("Access-Control-Allow-Headers", "Content-Type");
-        headers.put("Access-Control-Allow-Origin", "*");
-        headers.put("Access-Control-Allow-Methods", "OPTIONS,POST");
-        response.setHeaders(headers);
-        response.setBody("OK");
+        try {
+            //Utils.logEnvironment(request, context, gson);
+            final String imageFormat = System.getenv().get(URL_DATA_FORMAT_VAR);
+            processImages(request.getBody(), imageFormat);
+        } catch (Exception ex) {
+            log.error("Cannot process images", ex);
+            var response = Utils.getResponse(500, gson.toJson(ex));
 
-        return response;
+            return response;
+        }
+
+        return Utils.getResponse(200, "OK");
     }
 
 

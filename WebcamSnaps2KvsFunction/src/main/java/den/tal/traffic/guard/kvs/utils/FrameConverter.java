@@ -2,6 +2,7 @@ package den.tal.traffic.guard.kvs.utils;
 
 import com.amazonaws.kinesisvideo.producer.KinesisVideoFrame;
 import den.tal.traffic.guard.kvs.aws.WebCamMediaSourceConfiguration;
+import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import org.jcodec.codecs.h264.H264Encoder;
 import org.jcodec.common.model.ColorSpace;
@@ -28,6 +29,7 @@ public class FrameConverter {
         log.debug("Use color space: {}", colorSpace);
     }
 
+    @Getter
     private WebCamMediaSourceConfiguration configuration;
 
     public FrameConverter(WebCamMediaSourceConfiguration configuration) {

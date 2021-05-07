@@ -8,4 +8,4 @@ s3_prefix = "WebcamSnaps2Kvs"
 region = "eu-central-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
-parameter_overrides = "ApiGatewayRoleName=\"TrafficGuardApiGateway\" Deployment=\"Stage\" Fps=\"25\""
+parameter_overrides = "ApiGatewayRoleName=\"TrafficGuardApiGateway\" SnapsToKvsFunctionRoleName=\"TrafficGuardSnapsToKvs\" Deployment=\"Stage\" Fps=\"25\" URLDataFormat=\"data:image/jpeg;base64,\" KVSStreamName=\"traffic-guard\" KVSRegion=\"eu-central-1\" WebcamStreamQueueLength=\"100\""
