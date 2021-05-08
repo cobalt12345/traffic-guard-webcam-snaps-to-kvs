@@ -36,8 +36,8 @@ public class FrameConverter {
         this.configuration = configuration;
     }
 
-    public KinesisVideoFrame imageToKinesisFrame(BufferedImage image, int counter) {
-        Picture picture = AWTUtil.fromBufferedImage(image, colorSpace);
+    public KinesisVideoFrame imageToKinesisFrame(BufferedImageWithTimestamp image, int counter) {
+        Picture picture = AWTUtil.fromBufferedImage(image.getBufferedImage(), colorSpace);
         int buffSize = encoder.estimateBufferSize(picture);
         ByteBuffer byteBuffer = ByteBuffer.allocate(buffSize);
         ByteBuffer encodedBytes = encoder.encodeFrame(picture, byteBuffer).getData();
@@ -45,8 +45,8 @@ public class FrameConverter {
         final int flag = counter % configuration.getFps() == 0 ? FRAME_FLAG_KEY_FRAME : FRAME_FLAG_NONE;
         KinesisVideoFrame kinesisVideoFrame = new KinesisVideoFrame(counter,
                 flag,
-                currentTimeMs * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
-                currentTimeMs * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
+                image.getTimestamp() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
+                image.getTimestamp() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
                 configuration.getFrameDurationInMS() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
                 encodedBytes);
 

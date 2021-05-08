@@ -118,8 +118,9 @@ public class Utils {
                         Executors.newScheduledThreadPool(2));
 
         WebCamMediaSource webCamMediaSource = getWebCamMediaSource(webCam, kvsName);
-
         kinesisVideoClient.registerMediaSource(webCamMediaSource);
+        log.debug("Start WebCamMediaSource");
+        webCamMediaSource.start();
 
         return kinesisVideoClient;
     }

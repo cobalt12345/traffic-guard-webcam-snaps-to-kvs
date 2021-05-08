@@ -3,6 +3,7 @@ package den.tal.traffic.guard.kvs.aws;
 import com.amazonaws.kinesisvideo.common.exception.KinesisVideoException;
 import com.amazonaws.kinesisvideo.internal.mediasource.OnStreamDataAvailable;
 import den.tal.traffic.guard.WebCam;
+import den.tal.traffic.guard.kvs.utils.BufferedImageWithTimestamp;
 import den.tal.traffic.guard.kvs.utils.FrameConverter;
 import lombok.extern.log4j.Log4j2;
 
@@ -54,7 +55,7 @@ public class WebCamImageFrameSource {
         stopFrameGenerator();
     }
 
-    private void startFrameGenerator(BlockingQueue<BufferedImage> film) {
+    private void startFrameGenerator(BlockingQueue<BufferedImageWithTimestamp> film) {
         executor.submit(filmProjector(film));
     }
 
@@ -62,32 +63,26 @@ public class WebCamImageFrameSource {
         executor.shutdown();
     }
 
-    private Runnable filmProjector(BlockingQueue<BufferedImage> film) {
+    private Runnable filmProjector(BlockingQueue<BufferedImageWithTimestamp> film) {
         return () -> {
             int frameIndex = 0;
             while (isRunning) {
                 log.debug("Project frame");
-                BufferedImage image = film.poll();
-                if (null != image) {
-                    try {
-                        onStreamDataAvailableCallback.onFrameDataAvailable(frameConverter.imageToKinesisFrame(image,
-                                frameIndex++));
-
-                    } catch (KinesisVideoException kvex) {
-
-                        throw new RuntimeException(kvex);
-
-                    }
-                }
-
                 try {
+                    BufferedImageWithTimestamp image = film.take();
+                    onStreamDataAvailableCallback.onFrameDataAvailable(frameConverter.imageToKinesisFrame(image,
+                            frameIndex++));
 
-                    TimeUnit.MILLISECONDS.sleep(1000 / webCamMediaSourceConfiguration.getFps());
-
-                } catch (InterruptedException iex) {
-                    log.warn("Projector was interrupted by {}", Thread.currentThread().getName());
+                } catch (KinesisVideoException | InterruptedException ex) {
+                    log.error("Waiting on the queue was interrupted.", ex);
                 }
             }
+
+//            try {
+//                TimeUnit.MILLISECONDS.sleep(1000 / webCamMediaSourceConfiguration.getFps());
+//            } catch (InterruptedException iex) {
+//                log.warn("Projector was interrupted by {}", Thread.currentThread().getName());
+//            }
         };
     }
 }

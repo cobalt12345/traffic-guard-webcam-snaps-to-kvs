@@ -42,7 +42,7 @@ Parameters:
   WebcamStreamQueueLength:
     Description: "Internally used queue length"
     Type: Number
-    Default: 100
+    Default: 200
 
 Resources:
   ApiGatewayAssumedRole:

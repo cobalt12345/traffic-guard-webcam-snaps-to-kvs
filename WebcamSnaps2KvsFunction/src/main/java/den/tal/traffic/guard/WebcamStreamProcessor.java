@@ -10,6 +10,7 @@ import com.amazonaws.util.Base64;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import den.tal.traffic.guard.json.BodyPayload;
+import den.tal.traffic.guard.kvs.utils.BufferedImageWithTimestamp;
 import den.tal.traffic.guard.kvs.utils.Utils;
 import lombok.extern.slf4j.Slf4j;
 import org.jcodec.codecs.h264.H264Encoder;
@@ -38,7 +39,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     private final ColorSpace SUPPORTED_COLOR_SPACE = ColorSpace.YUV420J;
     private int processedFrameNum = 0;
     private boolean isFilmingStarted = false;
-    private BlockingQueue<BufferedImage> queue = new ArrayBlockingQueue<>(Integer.parseInt(System.getenv()
+    private BlockingQueue<BufferedImageWithTimestamp> queue = new ArrayBlockingQueue<>(Integer.parseInt(System.getenv()
             .get(QUEUE_LENGTH_VAR)));
 
     private KinesisVideoClient kinesisVideoClient;
@@ -54,7 +55,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     }
 
     @Override
-    public BlockingQueue<BufferedImage> getFilm() {
+    public BlockingQueue<BufferedImageWithTimestamp> getFilm() {
 
         return queue;
     }
@@ -65,7 +66,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         if (kinesisVideoClient == null) {
             try {
                 kinesisVideoClient = Utils.getKvsClient(Utils.getRegion(), this, Utils.getKvsName());
-                kinesisVideoClient.startAllMediaSources();
+//                kinesisVideoClient.startAllMediaSources();
             } catch (KinesisVideoException kvex) {
                 log.error("Cannot create KVS client", kvex);
                 var response = Utils.getResponse(500, gson.toJson(kvex));
@@ -77,7 +78,11 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         try {
             //Utils.logEnvironment(request, context, gson);
             final String imageFormat = System.getenv().get(URL_DATA_FORMAT_VAR);
-            processImages(request.getBody(), imageFormat);
+            if (isFilmingStarted) {
+                processImages(request.getBody(), imageFormat);
+            } else {
+                log.warn("Filming is not started.");
+            }
         } catch (Exception ex) {
             log.error("Cannot process images", ex);
             var response = Utils.getResponse(500, gson.toJson(ex));
@@ -92,16 +97,19 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     void processImages(String jsonBody, String imageFormat) {
         if (jsonBody != null && !jsonBody.isEmpty()) {
             BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
-            for (int i = 0; i < payload.getFrames().length; i++, processedFrameNum++) {
+            for (int i = 0; i < payload.getFrames().length; ++i, ++processedFrameNum) {
                 log.debug("Process image. Batch ordinal num: {}. Absolute num: {}",
                         i, processedFrameNum);
 
                 final String image64base = payload.getFrames()[i];
                 final long timestamp = payload.getTimestamps()[i];
                 BufferedImage bufferedImage = convertToImage(normalize(image64base, imageFormat));
-                boolean imageAdded = queue.offer(bufferedImage);
-                if (!imageAdded) {
-                    log.warn("Image wasn't added!");
+                try {
+
+                    queue.put(new BufferedImageWithTimestamp(bufferedImage, timestamp));
+                    log.debug("Image processed. Batch ordinal num: {} Absolute num: {}", i, processedFrameNum);
+                } catch (InterruptedException iex) {
+                    log.error("Waiting on the queue was interrupted.", iex);
                 }
             }
         } else {
