@@ -1,12 +1,6 @@
 package den.tal.traffic.guard.kvs.utils;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.ContainerCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
-import com.amazonaws.auth.profile.internal.securitytoken.RoleInfo;
-import com.amazonaws.auth.profile.internal.securitytoken.STSProfileCredentialsServiceProvider;
-import com.amazonaws.kinesisvideo.auth.EmptyCredentialsProvider;
 import com.amazonaws.kinesisvideo.client.KinesisVideoClient;
 import com.amazonaws.kinesisvideo.client.KinesisVideoClientConfiguration;
 import com.amazonaws.kinesisvideo.common.exception.KinesisVideoException;
@@ -15,8 +9,6 @@ import com.amazonaws.kinesisvideo.java.auth.JavaCredentialsProviderImpl;
 import com.amazonaws.kinesisvideo.java.client.KinesisVideoJavaClientFactory;
 import com.amazonaws.kinesisvideo.producer.DeviceInfo;
 import com.amazonaws.kinesisvideo.producer.StorageInfo;
-import com.amazonaws.kinesisvideo.producer.Tag;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.google.gson.Gson;

@@ -43,10 +43,16 @@ public class FrameConverter {
         ByteBuffer encodedBytes = encoder.encodeFrame(picture, byteBuffer).getData();
         final long currentTimeMs = System.currentTimeMillis();
         final int flag = counter % configuration.getFps() == 0 ? FRAME_FLAG_KEY_FRAME : FRAME_FLAG_NONE;
+//        KinesisVideoFrame kinesisVideoFrame = new KinesisVideoFrame(counter,
+//                flag,
+//                image.getTimestamp() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
+//                image.getTimestamp() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
+//                configuration.getFrameDurationInMS() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
+//                encodedBytes);
         KinesisVideoFrame kinesisVideoFrame = new KinesisVideoFrame(counter,
                 flag,
-                image.getTimestamp() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
-                image.getTimestamp() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
+                currentTimeMs * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
+                currentTimeMs * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
                 configuration.getFrameDurationInMS() * HUNDREDS_OF_NANOS_IN_A_MILLISECOND,
                 encodedBytes);
 

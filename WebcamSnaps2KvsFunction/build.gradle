@@ -14,7 +14,9 @@ dependencies {
     implementation 'software.amazon.awssdk:kinesisvideo:2.16.4'
     implementation 'software.amazon.awssdk:sts:2.16.4'
     implementation 'org.jcodec:jcodec-javase:0.2.5'
-    implementation 'com.amazonaws:amazon-kinesis-video-streams-producer-sdk-java:1.9.3'
+//    implementation 'com.amazonaws:amazon-kinesis-video-streams-producer-sdk-java:1.11.0'
+//    implementation files('../lib/amazon-kinesis-video-streams-producer-sdk-java-1.11.0.jar')
+    implementation fileTree(include: ['*'], dir: '..\\dll\\java\\lib')
     implementation 'com.google.http-client:google-http-client-gson:1.39.2'
     implementation 'org.apache.logging.log4j:log4j-api:2.13.0'
     implementation 'org.apache.logging.log4j:log4j-core:2.13.0'
@@ -28,6 +30,7 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.16'
     implementation 'com.amazonaws:aws-lambda-java-core:1.2.1'
     implementation 'com.amazonaws:aws-lambda-java-events:3.8.0'
+    implementation 'com.amazonaws:aws-java-sdk-core:1.11.1006'
     implementation 'com.fasterxml.jackson.core:jackson-annotations:2.11.3'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.11.3'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.11.3'

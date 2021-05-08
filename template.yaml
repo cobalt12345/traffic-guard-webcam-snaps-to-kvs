@@ -113,6 +113,7 @@ Resources:
           KVSStreamName: !Ref KVSStreamName
           KVSRegion: !Ref KVSRegion
           WebcamStreamQueueLength: 100
+          LD_LIBRARY_PATH: '/opt/java/lib/KinesisVideoProducerJNI'
       Layers:
         - !Ref StreamProducerNativeLibrary
 
@@ -121,7 +122,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      RetentionPolicy: Delete #no versioning is needed
+      RetentionPolicy: Delete
       CompatibleRuntimes:
         - java11
       ContentUri: dll
