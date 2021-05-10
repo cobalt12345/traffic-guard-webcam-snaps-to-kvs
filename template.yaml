@@ -113,7 +113,7 @@ Resources:
           KVSStreamName: !Ref KVSStreamName
           KVSRegion: !Ref KVSRegion
           WebcamStreamQueueLength: 100
-          LD_LIBRARY_PATH: '/opt/java/lib/KinesisVideoProducerJNI'
+          LD_LIBRARY_PATH: '/opt/lib'
       Layers:
         - !Ref StreamProducerNativeLibrary
 
@@ -125,7 +125,7 @@ Resources:
       RetentionPolicy: Delete
       CompatibleRuntimes:
         - java11
-      ContentUri: dll
+      ContentUri: jni
 
   WebcamSnaps2KvsApi:
     Type: AWS::ApiGateway::RestApi

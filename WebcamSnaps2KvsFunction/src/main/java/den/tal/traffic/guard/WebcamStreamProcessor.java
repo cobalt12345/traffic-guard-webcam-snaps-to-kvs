@@ -19,11 +19,8 @@ import org.jcodec.common.model.ColorSpace;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collections;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -37,27 +34,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         WebCam
 {
     static {
-        File opt = Paths.get("/opt").toFile();
-        try {
-            Files.walkFileTree(opt.toPath(), Collections.emptySet(), 69, new SimpleFileVisitor<Path>() {
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    log.debug("(f){}", file);
-
-                    return FileVisitResult.CONTINUE;
-                }
-                @Override
-                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                    log.debug("(d){}", dir);
-
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            log.error("Can't load native library", e);
-        }
-        System.loadLibrary("KinesisVideoProducerJNI");
+        Utils.printOutDirectoryRecursive(Paths.get("/opt"));
     }
     private static final String URL_DATA_FORMAT_VAR = "URLDataFormat";
     private static final String QUEUE_LENGTH_VAR = "WebcamStreamQueueLength";

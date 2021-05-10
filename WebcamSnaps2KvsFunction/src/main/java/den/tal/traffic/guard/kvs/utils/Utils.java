@@ -18,6 +18,13 @@ import den.tal.traffic.guard.kvs.aws.WebCamMediaSourceConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
 
@@ -133,7 +140,7 @@ public class Utils {
                 StorageInfo.DeviceStorageType.DEVICE_STORAGE_TYPE_IN_MEM,
                 256 * 1024 * 1024,
                 90,
-                "/tmp");
+                "/opt");
     }
 
     private static WebCamMediaSource getWebCamMediaSource(WebCam webCam, String kvsName) {
@@ -149,5 +156,27 @@ public class Utils {
     private static FrameConverter getFrameConverter() {
 
         return new FrameConverter(getWebCamMediaSourceConfiguration());
+    }
+
+    public static void printOutDirectoryRecursive(Path pathToDir) {
+        try {
+            Files.walkFileTree(pathToDir, Collections.emptySet(), 69, new SimpleFileVisitor<Path>() {
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    log.debug("(f) {}", file);
+
+                    return FileVisitResult.CONTINUE;
+                }
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    log.debug("(d) {}", dir);
+
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            log.error("Cannot print directory content.", e);
+        }
     }
 }
