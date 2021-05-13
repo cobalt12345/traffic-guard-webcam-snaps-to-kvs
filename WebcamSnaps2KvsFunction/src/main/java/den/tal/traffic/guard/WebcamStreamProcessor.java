@@ -1,25 +1,34 @@
 package den.tal.traffic.guard;
 
-import com.amazonaws.kinesisvideo.common.exception.KinesisVideoException;
+import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoPutMedia;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.util.Base64;
+import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import den.tal.traffic.guard.json.BodyPayload;
-import den.tal.traffic.guard.kvs.utils.BufferedImageWithTimestamp;
 import den.tal.traffic.guard.kvs.utils.Utils;
 import lombok.extern.slf4j.Slf4j;
+import org.jcodec.api.SequenceEncoder;
+import org.jcodec.codecs.h264.H264Encoder;
+import org.jcodec.codecs.png.PNGEncoder;
+import org.jcodec.common.io.ByteBufferSeekableByteChannel;
+import org.jcodec.common.io.FileChannelWrapper;
+import org.jcodec.common.model.ColorSpace;
+import org.jcodec.common.model.Picture;
+import org.jcodec.common.model.Rational;
+import org.jcodec.containers.mkv.muxer.MKVMuxer;
+import org.jcodec.containers.mkv.muxer.MKVMuxerTrack;
+import org.jcodec.scale.AWTUtil;
+import org.jcodec.scale.RgbToYuv420p;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.file.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
+import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 /**
@@ -28,111 +37,60 @@ import java.util.function.Consumer;
  * @author Denis Talochkin
  */
 @Slf4j
-public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>,
-        WebCam
+public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>
 {
-    static {
-        Utils.printOutDirectoryRecursive(Paths.get("/opt"));
-    }
-    private static final String URL_DATA_FORMAT_VAR = "URLDataFormat";
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private int processedFrameNum = 0;
-    private boolean isFilmingStarted = false;
-    private BlockingQueue<BufferedImageWithTimestamp> queue = new ArrayBlockingQueue<>(Utils.getQueueLength());
 
-    private static final Utils.KvsClientType clientType = Utils.getClientType();
-
-    @Override
-    public void startFilming() {
-        isFilmingStarted = true;
-    }
-
-    @Override
-    public void stopFilming() {
-        isFilmingStarted = false;
-    }
-
-    @Override
-    public BlockingQueue<BufferedImageWithTimestamp> getFilm() {
-
-        return queue;
-    }
+    private PNGEncoder pngEncoder = new PNGEncoder();
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
-        switch (clientType) {
-            case JAVA_CLIENT:
-                try {
-                    var kinesisVideoClient = Utils.getKvsClient(Utils.getRegion(),
-                            this, Utils.getKvsName());
+        AmazonKinesisVideoPutMedia kinesisVideoPutMediaClient = Utils.getKvsPutMediaClient(Utils.getRegion(),
+                Utils.getKvsName());
 
-                    kinesisVideoClient.startAllMediaSources();
-                    try {
-                        //Utils.logEnvironment(request, context, gson);
-                        final String imageFormat = System.getenv().get(URL_DATA_FORMAT_VAR);
-                        if (isFilmingStarted) {
-                            processImages(request.getBody(), imageFormat, this::addImagesToQueue);
-                        } else {
-                            log.warn("Filming is not started.");
-                        }
-                    } catch (Exception ex) {
-                        log.error("Cannot process images", ex);
-                        var response = Utils.getResponse(500, gson.toJson(ex));
-
-                        return response;
-                    }
-                } catch (KinesisVideoException kvex) {
-                    log.error("Cannot create KVS client", kvex);
-                    var response = Utils.getResponse(500, gson.toJson(kvex));
-
-                    return response;
-                }
-
-                break;
-            case PUT_MEDIA_CLIENT:
-                var kinesisVideoClient = Utils.getKvsPutMediaClient(Utils.getRegion(),
-                        Utils.getKvsName());
-
-                try {
-                    final String imageFormat = System.getenv().get(URL_DATA_FORMAT_VAR);
-                    processImages(request.getBody(), imageFormat, Utils.getProcessor(kinesisVideoClient));
-                } catch (Exception ex) {
-                    log.error("Cannot process images", ex);
-                    var response = Utils.getResponse(500, gson.toJson(ex));
-
-                    return response;
-                }
-                break;
-        }
+        processImages(request.getBody(), Utils.getImageFormatPrefix(), Utils.getProcessor(kinesisVideoPutMediaClient));
 
         return Utils.getResponse(200, "OK");
     }
 
-    void addImagesToQueue(BufferedImageWithTimestamp bufferedImage) {
-        try {
-            queue.put(bufferedImage);
-        } catch (InterruptedException iex) {
-            log.error("Waiting on the queue was interrupted.", iex);
-        }
-    }
-
-    void processImages(String jsonBody, String imageFormat, Consumer<BufferedImageWithTimestamp> processor) {
+    void processImages(String jsonBody, String imageFormat, Consumer<InputStream> processor) {
         if (jsonBody != null && !jsonBody.isEmpty()) {
             BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
+            Picture[] pictures = new Picture[payload.getFrames().length];
+            int bufferSize = 0;
             for (int i = 0; i < payload.getFrames().length; ++i, ++processedFrameNum) {
                 log.debug("Process image. Batch ordinal num: {}. Absolute num: {}",
                         i, processedFrameNum);
 
                 final String image64base = payload.getFrames()[i];
-                final long timestamp = payload.getTimestamps()[i];
                 BufferedImage bufferedImage = convertToImage(normalize(image64base, imageFormat));
-                processor.accept(new BufferedImageWithTimestamp(bufferedImage, timestamp));
-                log.debug("Image processed. Batch ordinal num: {} Absolute num: {}", i, processedFrameNum);
+                Picture picture = AWTUtil.fromBufferedImage(bufferedImage, ColorSpace.RGB);
+                pictures[i] = picture;
+                bufferSize += pngEncoder.estimateBufferSize(pictures[i]);
             }
+
+            try {
+                ByteBuffer allocatedBuffer = ByteBuffer.allocate(bufferSize);
+                SequenceEncoder encoder = SequenceEncoder.createWithFps(new ByteBufferSeekableByteChannel (
+                        allocatedBuffer, pictures.length), Rational.ONE);
+
+                for (Picture pic : pictures) {
+                    encoder.encodeNativeFrame(pic);
+                }
+                encoder.finish();
+                InputStream is = new ByteBufferBackedInputStream(allocatedBuffer);
+                processor.accept(is);
+            } catch (IOException e) {
+                log.error("Payload images cannot be converted into the sequence.");
+            }
+
+
         } else {
             log.debug("Method body is empty. No images for processing.");
         }
     }
+
 
     String normalize(String image64base, String imageFormat) {
         return image64base.substring(imageFormat.length());
@@ -152,4 +110,45 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         }
     }
 
+    private static void png2mkv(String pattern, String out) throws IOException {
+        FileOutputStream fos = new FileOutputStream(out);
+        FileChannelWrapper sink = null;
+        try {
+            sink = new FileChannelWrapper(fos.getChannel());
+            MKVMuxer muxer = new MKVMuxer(sink);
+
+            H264Encoder encoder = new H264Encoder();
+            RgbToYuv420p transform = new RgbToYuv420p(0, 0);
+
+            MKVMuxerTrack videoTrack = null;
+            int i;
+            for (i = 1;; i++) {
+
+                BufferedImage rgb = ImageIO.read(new File(""));
+
+                if (videoTrack == null) {
+                    videoTrack = muxer.addVideoTrack(new Size(rgb.getWidth(), rgb.getHeight()), "V_MPEG4/ISO/AVC");
+                    videoTrack.setTgtChunkDuration(Rational.ONE, SEC);
+                }
+                Picture yuv = Picture.create(rgb.getWidth(), rgb.getHeight(), encoder.getSupportedColorSpaces()[0]);
+                transform.transform(AWTUtil.fromBufferedImage(rgb), yuv);
+                ByteBuffer buf = ByteBuffer.allocate(rgb.getWidth() * rgb.getHeight() * 3);
+
+                ByteBuffer ff = encoder.encodeFrame(yuv, buf);
+
+                BlockElement se = BlockElement.keyFrame(videoTrack.trackId, i - 1, ff.array());
+                videoTrack.addSampleEntry(se);
+            }
+            if (i == 1) {
+                System.out.println("Image sequence not found");
+                return;
+            }
+            muxer.mux();
+        } finally {
+            IOUtils.closeQuietly(fos);
+            if (sink != null)
+                sink.close();
+
+        }
+    }
 }

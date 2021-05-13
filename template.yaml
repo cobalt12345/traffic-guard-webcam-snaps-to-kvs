@@ -23,14 +23,10 @@ Parameters:
     Description: "Use different endpoints for different environments. Possible values: Prod | Stage"
     Type: String
     Default: 'Stage'
-  Fps:
-    Description: "Frames per second"
-    Type: Number
-    Default: 25
   URLDataFormat:
     Description: "Frames are encoded by html canvas into URL data using predefined format."
     Type: String
-    Default: 'data:image/jpeg;base64,'
+    Default: 'data:image/png;base64,'
   KVSStreamName:
     Description: "Target Kinesis Video Stream name"
     Type: String
@@ -39,14 +35,6 @@ Parameters:
     Description: "Region of target KVS"
     Type: String
     Default: 'eu-central-1'
-  WebcamStreamQueueLength:
-    Description: "Internally used queue length"
-    Type: Number
-    Default: 200
-  KvsClientType:
-    Description: 'Use either java client or putMedia client'
-    Type: String
-    Default: 'JAVA_CLIENT'
 
 Resources:
   ApiGatewayAssumedRole:
@@ -112,13 +100,10 @@ Resources:
       PackageType: Zip
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
-          FPS: !Ref Fps
           URLDataFormat: !Ref URLDataFormat
           KVSStreamName: !Ref KVSStreamName
           KVSRegion: !Ref KVSRegion
-          WebcamStreamQueueLength: 100
           LD_LIBRARY_PATH: '/opt/lib'
-          KvsClientType: !Ref KvsClientType
       Layers:
         - !Ref StreamProducerNativeLibrary
 
@@ -171,10 +156,8 @@ Resources:
         IntegrationHttpMethod: POST
         IntegrationResponses:
           - StatusCode: 200
-          - StatusCode: 500
       MethodResponses:
         - StatusCode: 200
-        - StatusCode: 500
       RequestParameters:
         method.request.path.kvsName: True
       ResourceId: !Ref KinesisVideoStreamResource
