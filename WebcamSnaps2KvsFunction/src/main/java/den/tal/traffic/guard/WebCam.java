@@ -2,7 +2,6 @@ package den.tal.traffic.guard;
 
 import den.tal.traffic.guard.kvs.utils.BufferedImageWithTimestamp;
 
-import java.awt.image.BufferedImage;
 import java.util.concurrent.BlockingQueue;
 
 public interface WebCam {

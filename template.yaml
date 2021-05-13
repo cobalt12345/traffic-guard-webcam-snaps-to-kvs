@@ -43,6 +43,10 @@ Parameters:
     Description: "Internally used queue length"
     Type: Number
     Default: 200
+  KvsClientType:
+    Description: 'Use either java client or putMedia client'
+    Type: String
+    Default: 'JAVA_CLIENT'
 
 Resources:
   ApiGatewayAssumedRole:
@@ -114,6 +118,7 @@ Resources:
           KVSRegion: !Ref KVSRegion
           WebcamStreamQueueLength: 100
           LD_LIBRARY_PATH: '/opt/lib'
+          KvsClientType: !Ref KvsClientType
       Layers:
         - !Ref StreamProducerNativeLibrary
 

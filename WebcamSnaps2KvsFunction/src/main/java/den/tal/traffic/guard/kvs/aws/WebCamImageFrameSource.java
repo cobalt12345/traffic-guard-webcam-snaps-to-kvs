@@ -7,11 +7,9 @@ import den.tal.traffic.guard.kvs.utils.BufferedImageWithTimestamp;
 import den.tal.traffic.guard.kvs.utils.FrameConverter;
 import lombok.extern.log4j.Log4j2;
 
-import java.awt.image.BufferedImage;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  *

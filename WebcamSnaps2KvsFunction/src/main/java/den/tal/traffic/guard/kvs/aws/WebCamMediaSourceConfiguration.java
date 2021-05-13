@@ -1,7 +1,6 @@
 package den.tal.traffic.guard.kvs.aws;
 
 import com.amazonaws.kinesisvideo.internal.client.mediasource.MediaSourceConfiguration;
-import com.amazonaws.kinesisvideo.producer.TrackInfo;
 import den.tal.traffic.guard.kvs.utils.Utils;
 import lombok.Getter;
 import lombok.ToString;

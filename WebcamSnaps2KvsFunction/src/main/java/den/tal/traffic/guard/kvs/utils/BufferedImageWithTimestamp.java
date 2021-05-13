@@ -1,6 +1,5 @@
 package den.tal.traffic.guard.kvs.utils;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 
