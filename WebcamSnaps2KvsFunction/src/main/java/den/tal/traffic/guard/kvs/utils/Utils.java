@@ -12,6 +12,7 @@ import com.amazonaws.services.kinesisvideo.model.GetDataEndpointRequest;
 import com.amazonaws.services.kinesisvideo.model.PutMediaRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,7 +37,32 @@ import java.util.function.Consumer;
 public class Utils {
 
     private static final int CONNECTION_TIMEOUT_IN_MILLIS = 10_000;
-    private static PNGEncoder pngEncoder = new PNGEncoder();
+    public static final byte[] CODEC_PRIVATE_DATA_640x480_25 = {
+            (byte) 0x01,
+            (byte) 0x42,
+            (byte) 0x00,
+            (byte) 0x28,
+            (byte) 0xFF,
+            (byte) 0xE1,
+            (byte) 0x00,
+            (byte) 0x09,
+            (byte) 0x67,
+            (byte) 0x42,
+            (byte) 0x00,
+            (byte) 0x28,
+            (byte) 0xAD,
+            (byte) 0x01,
+            (byte) 0x40,
+            (byte) 0x7A,
+            (byte) 0x20,
+            (byte) 0x01,
+            (byte) 0x00,
+            (byte) 0x04,
+            (byte) 0x68,
+            (byte) 0xCE,
+            (byte) 0x38,
+            (byte) 0x80
+    };
 
     public static APIGatewayProxyResponseEvent getResponse(int status, String body) {
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
@@ -105,14 +132,15 @@ public class Utils {
         return Integer.parseInt(System.getenv().get("WebcamStreamQueueLength"));
     }
 
-    public static Consumer<InputStream> getProcessor(AmazonKinesisVideoPutMedia kvsClient) {
-        Consumer<InputStream> consumer = new Consumer<InputStream>() {
+    public static Consumer<ByteBuffer> getProcessor(AmazonKinesisVideoPutMedia kvsClient) {
+        Consumer<ByteBuffer> consumer = new Consumer<ByteBuffer>() {
             @Override
-            public void accept(InputStream videoFile) {
+            public void accept(ByteBuffer videoFile) {
+                var is = new ByteBufferBackedInputStream(videoFile);
                 Gson gson = new GsonBuilder().setPrettyPrinting().create();
                 kvsClient.putMedia(new PutMediaRequest().withStreamName(getKvsName())
                                 .withFragmentTimecodeType(FragmentTimecodeType.RELATIVE)
-                                .withPayload(videoFile)
+                                .withPayload(is)
                                 .withProducerStartTimestamp(new Date()),
 
                         new PutMediaAckResponseHandler() {
@@ -125,12 +153,22 @@ public class Utils {
                             public void onFailure(Throwable t) {
                                 log.error("Fragment error. {}", gson.toJson(t));
                                 kvsClient.close();
+                                try {
+                                    is.close();
+                                } catch (IOException e) {
+                                    log.error("Fragment error. {}", e);
+                                }
                             }
 
                             @Override
                             public void onComplete() {
                                 log.info("Fragment sent.");
                                 kvsClient.close();
+                                try {
+                                    is.close();
+                                } catch (IOException e) {
+                                    log.error("Fragment error. {}", e);
+                                }
                             }
                         }
                 );
