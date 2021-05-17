@@ -9,6 +9,5 @@ import java.awt.image.BufferedImage;
 public class BufferedImageWithTimestamp {
     @NonNull
     private BufferedImage bufferedImage;
-    @NonNull
     private long timestamp;
 }

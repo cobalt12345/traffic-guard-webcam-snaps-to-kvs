@@ -35,6 +35,10 @@ Parameters:
     Description: "Region of target KVS"
     Type: String
     Default: 'eu-central-1'
+  GeneratedMkvsFolder:
+    Description: "Set of png files converted into MKV container file. Files are placed under this directory."
+    Type: String
+    Default: 'generated_mkv'
 
 Resources:
   ApiGatewayAssumedRole:
@@ -94,7 +98,7 @@ Resources:
       Role: !GetAtt FunctionAssumedRole.Arn
       CodeUri: ./WebcamSnaps2KvsFunction
       Handler: den.tal.traffic.guard.WebcamStreamProcessor::handleRequest
-      Runtime: java11
+      Runtime: java8
       MemorySize: 512
       Tracing: Active
       PackageType: Zip
@@ -104,6 +108,7 @@ Resources:
           KVSStreamName: !Ref KVSStreamName
           KVSRegion: !Ref KVSRegion
           LD_LIBRARY_PATH: '/opt/lib'
+          GeneratedMkvsFolder: !Ref GeneratedMkvsFolder
       Layers:
         - !Ref StreamProducerNativeLibrary
 

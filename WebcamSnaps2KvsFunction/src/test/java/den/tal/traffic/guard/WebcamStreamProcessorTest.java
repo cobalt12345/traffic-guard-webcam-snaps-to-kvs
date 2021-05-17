@@ -3,10 +3,14 @@ package den.tal.traffic.guard;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
+import den.tal.traffic.guard.kvs.utils.Utils;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.*;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -20,22 +24,31 @@ public class WebcamStreamProcessorTest {
 
     private static final String REQUEST_PAYLOAD = "request_payload.json";
 
-    @Test
+//    @Before
+    public void initEnv() {
+        System.setProperty("URLDataFormat", "data:image/png;base64,");
+        System.setProperty("KVSStreamName", "traffic-guard");
+        System.setProperty("KVSRegion", "eu-central-1");
+        System.setProperty("GeneratedMkvsFolder", "mkv");
+
+        log.debug(System.getenv().toString());
+    }
+
+    public static void main(String[] args) throws Exception {
+        new WebcamStreamProcessorTest().handleRequestTest();
+    }
+
+//    @Ignore
+//    @Test
     public void handleRequestTest() throws Exception {
         APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();
-        var url = getClass().getClassLoader().getResource(REQUEST_PAYLOAD);
+        URL url = getClass().getClassLoader().getResource(REQUEST_PAYLOAD);
         List<String> payload = Files.readAllLines(Paths.get(url.toURI()));
         payload.forEach(System.out::println);
         String strPayload = payload.stream().collect(Collectors.joining());
 
-        new WebcamStreamProcessor().processImages(strPayload, "data:image/png;base64,", this::createMkvFile);
+        new WebcamStreamProcessor().processImages(strPayload, "data:image/png;base64,");
     }
 
-    public void createMkvFile(ByteBuffer fragment) {
-        try (var is = new ByteBufferBackedInputStream(fragment); var os = new FileOutputStream("frame.mkv")) {
-            IOUtils.copy(is, os);
-        } catch (IOException ioex) {
-            ioex.printStackTrace();
-        }
-    }
+
 }

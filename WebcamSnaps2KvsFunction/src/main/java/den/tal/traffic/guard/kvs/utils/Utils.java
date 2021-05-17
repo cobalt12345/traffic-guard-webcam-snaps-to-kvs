@@ -2,41 +2,36 @@ package den.tal.traffic.guard.kvs.utils;
 
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.kinesisvideo.common.logging.LogLevel;
+import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoAsync;
 import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoAsyncClient;
 import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoPutMedia;
 import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoPutMediaClient;
-import com.amazonaws.services.kinesisvideo.PutMediaAckResponseHandler;
-import com.amazonaws.services.kinesisvideo.model.AckEvent;
-import com.amazonaws.services.kinesisvideo.model.FragmentTimecodeType;
 import com.amazonaws.services.kinesisvideo.model.GetDataEndpointRequest;
-import com.amazonaws.services.kinesisvideo.model.PutMediaRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
-import com.fasterxml.jackson.databind.util.ByteBufferBackedInputStream;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import lombok.extern.slf4j.Slf4j;
-import org.jcodec.codecs.png.PNGEncoder;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.nio.ByteBuffer;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
-import java.util.function.Consumer;
 
 @Slf4j
 public class Utils {
 
-    private static final int CONNECTION_TIMEOUT_IN_MILLIS = 10_000;
+    private static final int CONNECTION_TIMEOUT_IN_MILLIS = 20_000;
+
+    /*
+     * Resolution: 640x480 25fps
+     * Codec private data from den.tal.stream.sources.CodecPrivateDataTest
+     */
     public static final byte[] CODEC_PRIVATE_DATA_640x480_25 = {
             (byte) 0x01,
             (byte) 0x42,
@@ -128,69 +123,23 @@ public class Utils {
         return imageFormat;
     }
 
-    public static int getQueueLength() {
-        return Integer.parseInt(System.getenv().get("WebcamStreamQueueLength"));
-    }
+    public static String getMkvsFolder() {
 
-    public static Consumer<ByteBuffer> getProcessor(AmazonKinesisVideoPutMedia kvsClient) {
-        Consumer<ByteBuffer> consumer = new Consumer<ByteBuffer>() {
-            @Override
-            public void accept(ByteBuffer videoFile) {
-                var is = new ByteBufferBackedInputStream(videoFile);
-                Gson gson = new GsonBuilder().setPrettyPrinting().create();
-                kvsClient.putMedia(new PutMediaRequest().withStreamName(getKvsName())
-                                .withFragmentTimecodeType(FragmentTimecodeType.RELATIVE)
-                                .withPayload(is)
-                                .withProducerStartTimestamp(new Date()),
-
-                        new PutMediaAckResponseHandler() {
-                            @Override
-                            public void onAckEvent(AckEvent event) {
-                                log.debug("Fragment acknowledged. Event: {}", gson.toJson(event));
-                            }
-
-                            @Override
-                            public void onFailure(Throwable t) {
-                                log.error("Fragment error. {}", gson.toJson(t));
-                                kvsClient.close();
-                                try {
-                                    is.close();
-                                } catch (IOException e) {
-                                    log.error("Fragment error. {}", e);
-                                }
-                            }
-
-                            @Override
-                            public void onComplete() {
-                                log.info("Fragment sent.");
-                                kvsClient.close();
-                                try {
-                                    is.close();
-                                } catch (IOException e) {
-                                    log.error("Fragment error. {}", e);
-                                }
-                            }
-                        }
-                );
-
-            }
-        };
-
-        return consumer;
+        return System.getenv().get("GeneratedMkvsFolder");
     }
 
     public static AmazonKinesisVideoPutMedia getKvsPutMediaClient(String awsRegion, String kvsName) {
-        var kvsClient = AmazonKinesisVideoAsyncClient.asyncBuilder()
+        AmazonKinesisVideoAsync kvsClient = AmazonKinesisVideoAsyncClient.asyncBuilder()
                 .withRegion(awsRegion)
                 .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
                 .build();
 
-        var endpoint = kvsClient.getDataEndpoint(new GetDataEndpointRequest()
+        String endpoint = kvsClient.getDataEndpoint(new GetDataEndpointRequest()
                 .withAPIName("PUT_MEDIA").withStreamName(kvsName)).getDataEndpoint();
 
-        final var uri = URI.create(endpoint + "/putMedia");
+        final URI uri = URI.create(endpoint + "/putMedia");
 
-        var putMediaClient = AmazonKinesisVideoPutMediaClient.builder()
+        AmazonKinesisVideoPutMedia putMediaClient = AmazonKinesisVideoPutMediaClient.builder()
                 .withRegion(awsRegion)
                 .withEndpoint(URI.create(endpoint))
                 .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
