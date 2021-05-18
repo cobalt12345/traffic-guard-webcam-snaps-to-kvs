@@ -16,6 +16,8 @@ import den.tal.traffic.guard.json.BodyPayload;
 import den.tal.traffic.guard.kvs.utils.Utils;
 import lombok.extern.slf4j.Slf4j;
 import org.jcodec.codecs.h264.H264Encoder;
+import org.jcodec.common.Codec;
+import org.jcodec.common.MuxerTrack;
 import org.jcodec.common.VideoCodecMeta;
 import org.jcodec.common.VideoEncoder;
 import org.jcodec.common.io.IOUtils;
@@ -51,16 +53,52 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
-        processImages(request.getBody(), Utils.getImageFormatPrefix());
-
+        File tempFile = convertImagesToFile(request.getBody(), Utils.getImageFormatPrefix());
+        sendFile2Kvs(tempFile);
         return Utils.getResponse(200, "OK");
     }
 
-    void processImages(String jsonBody, String imageFormat) {
-        if (jsonBody != null && !jsonBody.isEmpty()) {
-            AmazonKinesisVideoPutMedia kinesisVideoPutMediaClient = Utils.getKvsPutMediaClient(Utils.getRegion(),
-                    Utils.getKvsName());
+    void sendFile2Kvs(File mkvFile) {
+        Date startRecording = Date.from(Instant.now());
+        AmazonKinesisVideoPutMedia kinesisVideoPutMediaClient = Utils.getKvsPutMediaClient(Utils.getRegion(),
+                Utils.getKvsName());
 
+        try (InputStream is = new FileInputStream(mkvFile)) {
+            CountDownLatch latch = new CountDownLatch(1);
+            kinesisVideoPutMediaClient.putMedia(new PutMediaRequest().withStreamName(Utils.getKvsName())
+                            .withFragmentTimecodeType(FragmentTimecodeType.ABSOLUTE)
+                            .withPayload(is).withProducerStartTimestamp(startRecording),
+                    new PutMediaAckResponseHandler(){
+
+                        @Override
+                        public void onFailure(Throwable t) {
+                            log.error("Fragment send error.", t);
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onComplete() {
+                            log.debug("Fragment sent.");
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onAckEvent(AckEvent event) {
+                            log.debug("Fragment ack. {}", event);
+                        }
+                    });
+
+            latch.await();
+            is.close();
+            kinesisVideoPutMediaClient.close();
+            Files.delete(mkvFile.toPath());
+        } catch (InterruptedException | IOException  ex) {
+            log.error("File can not be sent to KVS", ex);
+        }
+    }
+
+    File convertImagesToFile(String jsonBody, String imageFormat) {
+        if (jsonBody != null && !jsonBody.isEmpty()) {
             BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
             final MKVMuxer muxer;
             H264Encoder encoder = H264Encoder.createH264Encoder();
@@ -77,18 +115,18 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
 
                 throw new RuntimeException(ioex);
             }
+            Rational rational = Rational.R(payload.getFrames().length, 1);
             for (int i = 0; i < payload.getFrames().length; ++i, ++processedFrameNum) {
                 log.debug("Process image. Batch ordinal num: {}. Absolute num: {}",
                         i, processedFrameNum);
 
                 final String image64base = payload.getFrames()[i];
                 BufferedImage bufferedImage = convertToImage(normalize(image64base, imageFormat));
-                MKVMuxerTrack track = null;
+                MuxerTrack track = null;
                 if (null == track) {
-                    track = muxer.createVideoTrack(VideoCodecMeta.createVideoCodecMeta("avc1",
+                    track = muxer.addVideoTrack(Codec.H264, VideoCodecMeta.createVideoCodecMeta(null,
                             ByteBuffer.wrap(Utils.CODEC_PRIVATE_DATA_640x480_25), new Size(bufferedImage.getWidth(),
-                                    bufferedImage.getHeight()), Rational.R(payload.getFrames().length, 1)),
-                                "V_MPEG4/ISO/AVC");
+                                    bufferedImage.getHeight()), rational));
                 }
                 try {
                     Picture yuvPicture = Picture.create(bufferedImage.getWidth(), bufferedImage.getHeight(),
@@ -101,11 +139,12 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
                     track.addFrame(
                             Packet.createPacket(
                                     frame.getData(),
-                                    Date.from(Instant.now()).getTime(),
-                                    10000,
-                            1000 / payload.getFrames().length,
+                                    payload.getTimestamps()[0],
+                                    rational.getNum(),
+                                    rational.getDen(),
                             i,
-                            i == (payload.getFrames().length - 1) ? Packet.FrameType.KEY : Packet.FrameType.INTER,
+                            Packet.FrameType.KEY,
+//                            i == (payload.getFrames().length - 1) ? Packet.FrameType.KEY : Packet.FrameType.INTER,
                             ZERO_TAPE_TIMECODE));
 
                 } catch (Exception e) {
@@ -115,42 +154,17 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
             try {
                 muxer.finish();
                 IOUtils.closeQuietly(out);
-                InputStream is = new FileInputStream(tmpMkvFile);
-                CountDownLatch latch = new CountDownLatch(1);
-                kinesisVideoPutMediaClient.putMedia(new PutMediaRequest().withStreamName(Utils.getKvsName())
-                    .withFragmentTimecodeType(FragmentTimecodeType.RELATIVE)
-                        .withPayload(is).withProducerStartTimestamp(Date.from(Instant.now())),
-                                new PutMediaAckResponseHandler(){
 
-                                    @Override
-                                    public void onFailure(Throwable t) {
-                                        log.error("Fragment send error.", t);
-                                        latch.countDown();
-                                    }
-
-                                    @Override
-                                    public void onComplete() {
-                                        log.debug("Fragment sent.");
-                                        latch.countDown();
-                                    }
-
-                                    @Override
-                                    public void onAckEvent(AckEvent event) {
-                                        log.debug("Fragment ack. {}", event);
-                                    }
-                                });
-
-                latch.await();
-                is.close();
-                kinesisVideoPutMediaClient.close();
-                Files.delete(tmpMkvFile.toPath());
-            } catch (IOException|InterruptedException e) {
+                return tmpMkvFile;
+            } catch (IOException e) {
                 log.error("Task finalisation failed.", e);
 
                 throw new RuntimeException(e);
             }
         } else {
             log.debug("Method body is empty. No images for processing.");
+
+            return null;
         }
     }
 
