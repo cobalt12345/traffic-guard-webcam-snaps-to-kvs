@@ -120,6 +120,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
 
             MKVMuxer muxer = new MKVMuxer(outChannel);
             MKVMuxerTrack videoTrack = null;
+            long startTime = new Date().getTime();
             for (int frameNum = 0; frameNum < pictures.length; frameNum++) {
                 var pic = pictures[frameNum];
                 if (videoTrack == null) {
@@ -137,7 +138,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
                 ByteBuffer pictureBuffer = ByteBuffer.allocate(pictureBufferSize);
                 VideoEncoder.EncodedFrame encodedFrame = encoder.encodeFrame(pic, pictureBuffer);
                 Packet packet = Packet.createPacket(encodedFrame.getData(),
-                        new Date().getTime(),
+                        startTime,
                         10000,
                         200_000_000,
                         frameNum,
@@ -145,6 +146,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
                         TapeTimecode.tapeTimecode(frameNum, false, pictures.length));
 
                 videoTrack.addFrame(packet);
+                startTime += 1000;
             }
             muxer.finish();
 
