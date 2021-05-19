@@ -2,19 +2,28 @@ package den.tal.traffic.guard.kvs.utils;
 
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.kinesisvideo.common.logging.LogLevel;
-import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoAsync;
-import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoAsyncClient;
-import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoPutMedia;
-import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoPutMediaClient;
+import com.amazonaws.services.kinesisvideo.*;
 import com.amazonaws.services.kinesisvideo.model.GetDataEndpointRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.amazonaws.util.Base64;
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
+import org.jcodec.codecs.png.PNGDecoder;
+import org.jcodec.common.VideoCodecMeta;
+import org.jcodec.common.model.ColorSpace;
+import org.jcodec.common.model.Picture;
 
 import javax.annotation.Nonnull;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.Raster;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -129,7 +138,7 @@ public class Utils {
     }
 
     public static AmazonKinesisVideoPutMedia getKvsPutMediaClient(String awsRegion, String kvsName) {
-        AmazonKinesisVideoAsync kvsClient = AmazonKinesisVideoAsyncClient.asyncBuilder()
+        AmazonKinesisVideo kvsClient = AmazonKinesisVideoClient.builder()
                 .withRegion(awsRegion)
                 .withCredentials(DefaultAWSCredentialsProviderChain.getInstance())
                 .build();
@@ -168,6 +177,42 @@ public class Utils {
             });
         } catch (IOException e) {
             log.error("Cannot print directory content.", e);
+        }
+    }
+
+    public static ByteBuffer getByteBuffer(BufferedImage bufferedImage) {
+        Raster raster = bufferedImage.getRaster();
+        DataBufferByte dataBufferByte = (DataBufferByte) raster.getDataBuffer();
+        byte[] data = dataBufferByte.getData();
+
+        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(data.length);
+        byteBuffer.order(ByteOrder.nativeOrder());
+        byteBuffer.put(data, 0, data.length);
+        byteBuffer.flip();//from   w  ww .  j  ava 2s. co m
+
+        return byteBuffer;
+    }
+
+    public static Picture decodePNG(ByteBuffer buf) throws IOException {
+        PNGDecoder pngDec = new PNGDecoder();
+        VideoCodecMeta codecMeta = pngDec.getCodecMeta(buf);
+        Picture pic = Picture.create(codecMeta.getSize().getWidth(), codecMeta.getSize().getHeight(),
+                ColorSpace.RGB);
+
+        return pngDec.decodeFrame(buf, pic.getData());
+    }
+
+    public static BufferedImage convertToImage(String image64base) {
+        byte[] image = Base64.decode(image64base);
+        try (ByteArrayInputStream is = new ByteArrayInputStream(image)) {
+            BufferedImage bufferedImage = ImageIO.read(is);
+
+            return bufferedImage;
+
+        } catch (IOException ioex) {
+            log.error("Could not decode base64 image.", ioex);
+
+            return null;
         }
     }
 }
