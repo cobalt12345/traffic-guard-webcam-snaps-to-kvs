@@ -35,6 +35,18 @@ Parameters:
     Description: "Region of target KVS"
     Type: String
     Default: 'eu-central-1'
+  videoWidth:
+    Description: "Resulting MKV video fragment width."
+    Type: Number
+    Default: 640
+  videoHeight:
+    Description: "Resulting MKV video fragment height."
+    Type: Number
+    Default: 480
+  Path2FFmpeg:
+    Description: "Static installation of FFmpeg."
+    Type: String
+    Default: "/opt/lib/ffmpeg"
 
 Resources:
   ApiGatewayAssumedRole:
@@ -104,6 +116,9 @@ Resources:
           KVSStreamName: !Ref KVSStreamName
           KVSRegion: !Ref KVSRegion
           LD_LIBRARY_PATH: '/opt/lib'
+          videoWidth: !Ref videoWidth
+          videoHeight: !Ref videoHeight
+          Path2FFmpeg: !Ref Path2FFmpeg
       Layers:
         - !Ref StreamProducerNativeLibrary
 
