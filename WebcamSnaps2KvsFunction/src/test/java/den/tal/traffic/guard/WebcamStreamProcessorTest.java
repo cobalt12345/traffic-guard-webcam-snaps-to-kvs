@@ -7,6 +7,7 @@ import org.jcodec.api.transcode.filters.ScaleFilter;
 import org.jcodec.common.Codec;
 import org.jcodec.common.Format;
 import org.jcodec.common.Tuple;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
 
@@ -46,6 +47,7 @@ public class WebcamStreamProcessorTest {
         transcoder.transcode();
     }
 
+    @Disabled
     @Test
     public void handleRequestTest() throws Exception {
         APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();

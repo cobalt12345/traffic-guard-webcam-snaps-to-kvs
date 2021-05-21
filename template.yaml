@@ -47,6 +47,16 @@ Parameters:
     Description: "Static installation of FFmpeg."
     Type: String
     Default: "/opt/lib/ffmpeg"
+  CognitoUserPoolArn:
+    Description: "If value is set, authorizer will be created and gateway will check authorization for any API call."
+    Type: String
+    Default: ""
+
+Conditions:
+  AuthorizationRequired2CallAPI: !Not
+    - !Equals
+      - !Ref CognitoUserPoolArn
+      - ""
 
 Resources:
   ApiGatewayAssumedRole:
@@ -145,13 +155,29 @@ Resources:
       Name: WebcamSnapshots2KvsApi
 
   KinesisVideoStreamResource:
+    Type: AWS::ApiGateway::Resource
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
-    Type: AWS::ApiGateway::Resource
     Properties:
       ParentId: !GetAtt WebcamSnaps2KvsApi.RootResourceId
       PathPart: streams
       RestApiId: !Ref WebcamSnaps2KvsApi
+
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Condition: AuthorizationRequired2CallAPI
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      AuthorizerCredentials: !GetAtt
+        - ApiGatewayAssumedRole
+        - Arn
+      IdentitySource: method.request.header.Authorization
+      Name: 'WebcamSnapshots2KvsApiCognitoAuthorizer'
+      ProviderARNs:
+        - !Ref CognitoUserPoolArn
+      RestApiId: !Ref WebcamSnaps2KvsApi
+      Type: COGNITO_USER_POOLS
 
   MethodPost:
     Type: AWS::ApiGateway::Method
@@ -159,7 +185,12 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       ApiKeyRequired: False
-      AuthorizationType: NONE
+      AuthorizationType:
+        Fn::If:
+          - AuthorizationRequired2CallAPI
+          - COGNITO_USER_POOLS
+          - NONE
+      AuthorizerId: !If [AuthorizationRequired2CallAPI, !Ref CognitoAuthorizer, !Ref "AWS::NoValue"]
       HttpMethod: POST
       Integration:
         ConnectionType: INTERNET
