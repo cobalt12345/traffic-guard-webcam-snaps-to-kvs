@@ -50,6 +50,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
         try {
+//            Utils.logEnvironment(request, context, gson);
             Path tmpFolder = convertImages(request.getBody(), Utils.getImageFormatPrefix());
             Path mkvFile = convertImagesToMkv(tmpFolder);
             log.debug("Created MKV container file: {}", mkvFile);
