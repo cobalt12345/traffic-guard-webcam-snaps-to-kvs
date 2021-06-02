@@ -56,7 +56,7 @@ public class WebcamStreamProcessorTest {
         payload.forEach(System.out::println);
         String strPayload = String.join("", payload);
         WebcamStreamProcessor processor = new WebcamStreamProcessor();
-        Path imagesFolder = processor.convertImages(strPayload,"data:image/png;base64,");
+        Path imagesFolder = processor.convertImages(strPayload);
         Path mkvFile = processor.convertImagesToMkv(imagesFolder);
         log.debug("Temp Mkv file: {}", mkvFile.toAbsolutePath());
     }

@@ -23,10 +23,6 @@ Parameters:
     Description: "Use different endpoints for different environments. Possible values: Prod | Stage"
     Type: String
     Default: 'Stage'
-  URLDataFormat:
-    Description: "Frames are encoded by html canvas into URL data using predefined format."
-    Type: String
-    Default: 'data:image/png;base64,'
   KVSStreamName:
     Description: "Target Kinesis Video Stream name"
     Type: String
@@ -122,7 +118,6 @@ Resources:
       PackageType: Zip
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
-          URLDataFormat: !Ref URLDataFormat
           KVSStreamName: !Ref KVSStreamName
           KVSRegion: !Ref KVSRegion
           LD_LIBRARY_PATH: '/opt/lib'

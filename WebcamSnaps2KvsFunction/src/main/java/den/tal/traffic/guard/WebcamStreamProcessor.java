@@ -41,6 +41,9 @@ import java.util.concurrent.CountDownLatch;
 @Slf4j
 public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>
 {
+    private static final String PNG_URI_PREFIX = "data:image/png;base64,";
+    private static final String JPG_URI_PREFIX = "data:image/jpg;base64,";
+
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private H264Encoder encoder = H264Encoder.createH264Encoder();
 //    {
@@ -51,7 +54,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
         try {
 //            Utils.logEnvironment(request, context, gson);
-            Path tmpFolder = convertImages(request.getBody(), Utils.getImageFormatPrefix());
+            Path tmpFolder = convertImages(request.getBody());
             Path mkvFile = convertImagesToMkv(tmpFolder);
             log.debug("Created MKV container file: {}", mkvFile);
             CountDownLatch latch = new CountDownLatch(1);
@@ -128,7 +131,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         }
     }
 
-    Path convertImages(String jsonBody, String imageFormat) throws IOException {
+    Path convertImages(String jsonBody) throws IOException {
         if (jsonBody != null && !jsonBody.isEmpty()) {
             BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
             int bufferSize = 0;
@@ -137,7 +140,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
             for (int i = 0; i < payload.getFrames().length; ++i) {
                 log.debug("Process image. Batch ordinal num: {}.", i);
                 final String image64base = payload.getFrames()[i];
-                BufferedImage bufferedImage = convertToImage(normalize(image64base, imageFormat));
+                BufferedImage bufferedImage = convertToImage(normalize(image64base));
                 Picture picture = AWTUtil.fromBufferedImage(bufferedImage, encoder.getSupportedColorSpaces()[0]);
                 File pngFileName = new File(String.format("img%03d.png", i));
                 Path pngFile = Files.createFile(Paths.get(tmpDir.toAbsolutePath().toString(), pngFileName.getName()));
@@ -155,8 +158,22 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     }
 
 
-    String normalize(String image64base, String imageFormat) {
-        return image64base.substring(imageFormat.length());
+    String normalize(String image64base) {
+        if (image64base.regionMatches(true, 0, JPG_URI_PREFIX, 0, JPG_URI_PREFIX.length())) {
+            log.debug("Jpg image");
+
+            return image64base.substring(JPG_URI_PREFIX.length());
+
+        } else if (image64base.regionMatches(true, 0, PNG_URI_PREFIX, 0, PNG_URI_PREFIX.length())) {
+            log.debug("Png image");
+
+            return image64base.substring(PNG_URI_PREFIX.length());
+
+        } else {
+            log.debug("Uri contains no type prefix");
+
+            return image64base;
+        }
     }
 
     BufferedImage convertToImage(String image64base) {

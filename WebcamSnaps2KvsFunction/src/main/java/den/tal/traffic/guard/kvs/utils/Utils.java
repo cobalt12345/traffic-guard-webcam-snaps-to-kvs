@@ -85,12 +85,6 @@ public class Utils {
         return System.getenv().get("KVSStreamName");
     }
 
-    public static String getImageFormatPrefix() {
-        final String imageFormat = System.getenv().get("URLDataFormat");
-
-        return imageFormat;
-    }
-
     public static String getPath2ffmpeg() {
         final String path = System.getenv().get("Path2FFmpeg");
 
