@@ -10,6 +10,11 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.util.Base64;
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Directory;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import den.tal.traffic.guard.json.BodyPayload;
@@ -42,7 +47,7 @@ import java.util.concurrent.CountDownLatch;
 public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent>
 {
     private static final String PNG_URI_PREFIX = "data:image/png;base64,";
-    private static final String JPG_URI_PREFIX = "data:image/jpg;base64,";
+    private static final String JPG_URI_PREFIX = "data:image/jpeg;base64,";
 
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private H264Encoder encoder = H264Encoder.createH264Encoder();
@@ -113,7 +118,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         FFmpegBuilder builder = new FFmpegBuilder();
         Path mkvFile = folder.resolve("fragment.mkv");
         builder.addExtraArgs("-r", Long.toString(numOfPngFiles))
-                .setInput(folder.resolve("img%03d.png").toAbsolutePath().toString())
+                .setInput(folder.resolve("img%03d.jpg").toAbsolutePath().toString())
                 .addOutput(new FFmpegOutputBuilder().setVideoFrameRate(numOfPngFiles).setVideoCodec("libx264")
                         .setVideoPixelFormat("yuv420p").setFormat("matroska")
                             .setVideoResolution(Utils.getWidth(), Utils.getHeight())
@@ -142,10 +147,17 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
                 final String image64base = payload.getFrames()[i];
                 BufferedImage bufferedImage = convertToImage(normalize(image64base));
                 Picture picture = AWTUtil.fromBufferedImage(bufferedImage, encoder.getSupportedColorSpaces()[0]);
-                File pngFileName = new File(String.format("img%03d.png", i));
+                File pngFileName = new File(String.format("img%03d.jpg", i));
                 Path pngFile = Files.createFile(Paths.get(tmpDir.toAbsolutePath().toString(), pngFileName.getName()));
-                log.debug("Save PNG {}", pngFile.toAbsolutePath());
-                AWTUtil.savePicture(picture, "PNG", pngFile.toFile());
+                log.debug("Save JPG {}", pngFile.toAbsolutePath());
+                AWTUtil.savePicture(picture, "JPEG", pngFile.toFile());
+                try {
+                    Metadata metadata = ImageMetadataReader.readMetadata(pngFile.toFile());
+                    log.debug("Try to read metadata from payload image...");
+                    print(metadata);
+                } catch (ImageProcessingException ipex) {
+                    log.error("Failed to read image metadata.", ipex);
+                }
             }
 
             return tmpDir;
@@ -157,6 +169,28 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         }
     }
 
+    private void print(Metadata metadata)
+    {
+        //
+        // A Metadata object contains multiple Directory objects
+        //
+        for (Directory directory : metadata.getDirectories()) {
+
+            //
+            // Each Directory stores values in Tag objects
+            //
+            for (Tag tag : directory.getTags()) {
+                log.debug("Tag: {}", tag);
+            }
+
+            //
+            // Each Directory may also contain error messages
+            //
+            for (String error : directory.getErrors()) {
+                log.error("ERROR: {}", error);
+            }
+        }
+    }
 
     String normalize(String image64base) {
         if (image64base.regionMatches(true, 0, JPG_URI_PREFIX, 0, JPG_URI_PREFIX.length())) {
