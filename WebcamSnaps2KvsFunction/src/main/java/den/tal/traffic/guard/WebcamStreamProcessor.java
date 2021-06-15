@@ -10,11 +10,12 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.util.Base64;
+import com.drew.imaging.FileType;
+import com.drew.imaging.FileTypeDetector;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.imaging.ImageProcessingException;
-import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
-import com.drew.metadata.Tag;
+import com.drew.metadata.exif.GpsDirectory;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import den.tal.traffic.guard.json.BodyPayload;
@@ -24,18 +25,24 @@ import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFmpegExecutor;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
 import net.bramp.ffmpeg.builder.FFmpegOutputBuilder;
+import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.jcodec.codecs.h264.H264Encoder;
 import org.jcodec.common.model.Picture;
 import org.jcodec.common.model.Rational;
 import org.jcodec.scale.AWTUtil;
 
-import javax.imageio.ImageIO;
+import javax.imageio.*;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -51,14 +58,18 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
 
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private H264Encoder encoder = H264Encoder.createH264Encoder();
-//    {
-//        Utils.printOutDirectoryRecursive(Paths.get("/opt"));
-//    }
+    {
+        if (!Utils.isInProdMode()) {
+            Utils.printOutDirectoryRecursive(Paths.get("/opt"));
+        }
+    }
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
         try {
-//            Utils.logEnvironment(request, context, gson);
+            if (!Utils.isInProdMode()) {
+                Utils.logEnvironment(request, context, gson);
+            }
             Path tmpFolder = convertImages(request.getBody());
             Path mkvFile = convertImagesToMkv(tmpFolder);
             log.debug("Created MKV container file: {}", mkvFile);
@@ -110,19 +121,45 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         return Utils.getResponse(200, "OK");
     }
 
+    String getLocation(Path folder, String fileNamePattern) {
+        String coords = null;
+        try {
+            Metadata metadata = ImageMetadataReader.readMetadata(folder.resolve(String.format(fileNamePattern, 0))
+                    .toFile());
+
+            Collection<GpsDirectory> gpsDirs = metadata.getDirectoriesOfType(GpsDirectory.class);
+            for (Iterator<GpsDirectory> iter = gpsDirs.iterator();iter.hasNext();) {
+                GpsDirectory gpsDir = iter.next();
+                coords = gpsDir.getGeoLocation().toString();
+            }
+        } catch (IOException|ImageProcessingException e) {
+            log.warn("Error reading image file GPS metadata.", e);
+        }
+
+        return coords;
+    }
+
     Path convertImagesToMkv(Path folder) throws IOException {
-        long numOfPngFiles = Files.list(folder).count();
+        final String fileNamePattern = "img%03d.jpg";
+        final String locationMetadata = getLocation(folder, fileNamePattern);
+        long numOfJpegFiles = Files.list(folder).count();
         String ffmpegPath = Utils.getPath2ffmpeg();
         log.debug("FFmpeg is installed in: {}", ffmpegPath);
         FFmpeg ffmpeg = new FFmpeg(ffmpegPath);
         FFmpegBuilder builder = new FFmpegBuilder();
         Path mkvFile = folder.resolve("fragment.mkv");
-        builder.addExtraArgs("-r", Long.toString(numOfPngFiles))
-                .setInput(folder.resolve("img%03d.jpg").toAbsolutePath().toString())
-                .addOutput(new FFmpegOutputBuilder().setVideoFrameRate(numOfPngFiles).setVideoCodec("libx264")
-                        .setVideoPixelFormat("yuv420p").setFormat("matroska")
-                            .setVideoResolution(Utils.getWidth(), Utils.getHeight())
-                                .setFilename(mkvFile.toAbsolutePath().toString()));
+        FFmpegOutputBuilder outputBuilder = new FFmpegOutputBuilder().setVideoFrameRate(numOfJpegFiles)
+                .setVideoCodec("libx264")
+                .setVideoPixelFormat("yuv420p").setFormat("matroska")
+                .setVideoResolution(Utils.getWidth(), Utils.getHeight());
+
+        if (null != locationMetadata) {
+            outputBuilder.addExtraArgs("-metadata", "location=".concat(locationMetadata));
+        }
+        outputBuilder.setFilename(mkvFile.toAbsolutePath().toString());
+        builder.addExtraArgs("-r", Long.toString(numOfJpegFiles))
+                .setInput(folder.resolve(fileNamePattern).toAbsolutePath().toString())
+                .addOutput(outputBuilder);
 
         FFmpegExecutor executor = new FFmpegExecutor(ffmpeg);
         log.debug("Start FFmpeg job...");
@@ -145,18 +182,34 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
             for (int i = 0; i < payload.getFrames().length; ++i) {
                 log.debug("Process image. Batch ordinal num: {}.", i);
                 final String image64base = payload.getFrames()[i];
-                BufferedImage bufferedImage = convertToImage(normalize(image64base));
-                Picture picture = AWTUtil.fromBufferedImage(bufferedImage, encoder.getSupportedColorSpaces()[0]);
-                File pngFileName = new File(String.format("img%03d.jpg", i));
-                Path pngFile = Files.createFile(Paths.get(tmpDir.toAbsolutePath().toString(), pngFileName.getName()));
-                log.debug("Save JPG {}", pngFile.toAbsolutePath());
-                AWTUtil.savePicture(picture, "JPEG", pngFile.toFile());
-                try {
-                    Metadata metadata = ImageMetadataReader.readMetadata(pngFile.toFile());
-                    log.debug("Try to read metadata from payload image...");
-                    print(metadata);
-                } catch (ImageProcessingException ipex) {
-                    log.error("Failed to read image metadata.", ipex);
+                Pair<BufferedImage, Pair<FileType, IIOMetadata>> convertedImage = convertToImage(normalize(image64base));
+                Picture picture = AWTUtil.fromBufferedImage(convertedImage.getLeft(),
+                        encoder.getSupportedColorSpaces()[0]);
+
+                File jpegFileName = new File(String.format("img%03d.jpg", i));
+                Path jpegFile = Files.createFile(Paths.get(tmpDir.toAbsolutePath().toString(), jpegFileName.getName()));
+                log.debug("Save JPG {}", jpegFile.toAbsolutePath());
+                ImageWriter imageWriter = ImageIO.getImageWritersBySuffix(convertedImage.getRight().getLeft()
+                        .getCommonExtension()).next();
+
+                JPEGImageWriteParam writeParameters = (JPEGImageWriteParam) imageWriter.getDefaultWriteParam();
+                writeParameters.setOptimizeHuffmanTables(true);
+                writeParameters.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                writeParameters.setCompressionQuality(.95f);
+
+                imageWriter.setOutput(ImageIO.createImageOutputStream(jpegFile.toFile()));
+                imageWriter.write(null, new IIOImage(AWTUtil.toBufferedImage(picture), null,
+                        convertedImage.getRight().getRight()), writeParameters);
+
+                imageWriter.dispose();
+                if (!Utils.isInProdMode()) {
+                    try {
+                        Metadata metadata = ImageMetadataReader.readMetadata(jpegFile.toFile());
+                        log.debug("Try to read metadata from already saved image...");
+                        Utils.printImageFileMetadata(metadata);
+                    } catch (ImageProcessingException ipex) {
+                        log.error("Failed to read image metadata.", ipex);
+                    }
                 }
             }
 
@@ -166,29 +219,6 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
             log.debug("Method body is empty. No images for processing.");
 
             return null;
-        }
-    }
-
-    private void print(Metadata metadata)
-    {
-        //
-        // A Metadata object contains multiple Directory objects
-        //
-        for (Directory directory : metadata.getDirectories()) {
-
-            //
-            // Each Directory stores values in Tag objects
-            //
-            for (Tag tag : directory.getTags()) {
-                log.debug("Tag: {}", tag);
-            }
-
-            //
-            // Each Directory may also contain error messages
-            //
-            for (String error : directory.getErrors()) {
-                log.error("ERROR: {}", error);
-            }
         }
     }
 
@@ -210,14 +240,26 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
         }
     }
 
-    BufferedImage convertToImage(String image64base) {
+    Pair<BufferedImage, Pair<FileType, IIOMetadata>> convertToImage(String image64base) {
         byte[] image = Base64.decode(image64base);
-        try (ByteArrayInputStream is = new ByteArrayInputStream(image)) {
-            BufferedImage bufferedImage = ImageIO.read(is);
+        try (ByteArrayInputStream is = new ByteArrayInputStream(image);
+            BufferedInputStream bis = new BufferedInputStream(is)) {
+            Metadata metadata = ImageMetadataReader.readMetadata(is);
+            if (!Utils.isInProdMode()) {
+                log.debug("Try to read metadata from base64 image...");
+                Utils.printImageFileMetadata(metadata);
+                is.reset();
+            }
+            FileType fileType = FileTypeDetector.detectFileType(bis);
+            is.reset();
+            ImageReader imageReader = ImageIO.getImageReadersBySuffix(fileType.getCommonExtension()).next();
+            imageReader.setInput(ImageIO.createImageInputStream(is));
+            IIOMetadata imageMetadata = imageReader.getImageMetadata(0);
+            BufferedImage imageItself = imageReader.read(0);
 
-            return bufferedImage;
+            return new MutablePair<>(imageItself, new MutablePair<>(fileType, imageMetadata));
 
-        } catch (IOException ioex) {
+        } catch (Exception ioex) {
             log.error("Could not decode base64 image.", ioex);
 
             return null;

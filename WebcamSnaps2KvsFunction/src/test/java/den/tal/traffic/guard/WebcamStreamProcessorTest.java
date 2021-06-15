@@ -1,6 +1,11 @@
 package den.tal.traffic.guard;
 
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.util.Base64;
+import com.drew.imaging.FileType;
+import com.drew.imaging.FileTypeDetector;
+import com.google.gson.GsonBuilder;
+import den.tal.traffic.guard.json.BodyPayload;
 import lombok.extern.slf4j.Slf4j;
 import org.jcodec.api.transcode.*;
 import org.jcodec.api.transcode.filters.ScaleFilter;
@@ -11,10 +16,15 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 
 
@@ -47,7 +57,7 @@ public class WebcamStreamProcessorTest {
         transcoder.transcode();
     }
 
-    @Disabled
+//    @Disabled
     @Test
     public void handleRequestTest() throws Exception {
         APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();
@@ -57,7 +67,49 @@ public class WebcamStreamProcessorTest {
         String strPayload = String.join("", payload);
         WebcamStreamProcessor processor = new WebcamStreamProcessor();
         Path imagesFolder = processor.convertImages(strPayload);
+        log.debug("Images temp folder: {}", imagesFolder.toAbsolutePath());
         Path mkvFile = processor.convertImagesToMkv(imagesFolder);
         log.debug("Temp Mkv file: {}", mkvFile.toAbsolutePath());
+    }
+
+    @Disabled
+    @Test
+    public void detectFileTypeTest() throws Exception {
+        WebcamStreamProcessor processor = new WebcamStreamProcessor();
+        APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();
+        var url = getClass().getClassLoader().getResource(REQUEST_PAYLOAD);
+        List<String> payload = Files.readAllLines(Paths.get(url.toURI()));
+        String strPayload = String.join("", payload);
+        BodyPayload bodyPayload = new GsonBuilder().create().fromJson(strPayload, BodyPayload.class);
+        Arrays.stream(bodyPayload.getFrames()).forEach(
+                image64base -> {
+                    String normalizedImage64base = processor.normalize(image64base);
+                    byte[] image = Base64.decode(normalizedImage64base);
+                    try (ByteArrayInputStream bais = new ByteArrayInputStream(image);
+                         BufferedInputStream bis = new BufferedInputStream(bais)) {
+                        FileType fileType = FileTypeDetector.detectFileType(bis);
+                        log.debug("Detected file type: {}", fileType);
+                        bais.reset();
+                        BufferedImage bufferedImage = ImageIO.read(bais);
+
+                    } catch(IOException ioex) {
+                        throw new RuntimeException(ioex);
+                    }
+                }
+        );
+    }
+
+    @Disabled
+    @Test
+    public void supportedFormatNamesTest() {
+        for (String formatName : ImageIO.getWriterFormatNames()) {
+            System.out.println("formatName = " + formatName);
+        }
+    }
+
+    @Test
+    public void fileNamePatternTest() {
+        final String pattern = "img%03d.jpg";
+        log.debug("Image file name: {}", String.format(pattern, 0));
     }
 }

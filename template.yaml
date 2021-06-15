@@ -124,6 +124,7 @@ Resources:
           videoWidth: !Ref videoWidth
           videoHeight: !Ref videoHeight
           Path2FFmpeg: !Ref Path2FFmpeg
+          Deployment: !Ref Deployment
       Layers:
         - !Ref StreamProducerNativeLibrary
 

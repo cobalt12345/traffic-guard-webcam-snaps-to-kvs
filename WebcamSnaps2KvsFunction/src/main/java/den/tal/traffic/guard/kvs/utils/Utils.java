@@ -8,6 +8,9 @@ import com.amazonaws.services.kinesisvideo.AmazonKinesisVideoPutMediaClient;
 import com.amazonaws.services.kinesisvideo.model.GetDataEndpointRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.drew.metadata.Directory;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 
@@ -103,6 +106,12 @@ public class Utils {
         return height;
     }
 
+    public static boolean isInProdMode() {
+        final String environment = System.getenv().get("Deployment");
+
+        return "Prod".equals(environment);
+    }
+
     public static AmazonKinesisVideoPutMedia getKvsPutMediaClient(String awsRegion, String kvsName) {
         var kvsClient = AmazonKinesisVideoAsyncClient.asyncBuilder()
                 .withRegion(awsRegion)
@@ -146,4 +155,17 @@ public class Utils {
             log.error("Cannot print directory content.", e);
         }
     }
+
+    public static void printImageFileMetadata(Metadata metadata)
+    {
+        for (Directory directory : metadata.getDirectories()) {
+            for (Tag tag : directory.getTags()) {
+                log.debug("Tag: {}", tag);
+            }
+            for (String error : directory.getErrors()) {
+                log.error("ERROR: {}", error);
+            }
+        }
+    }
+
 }
