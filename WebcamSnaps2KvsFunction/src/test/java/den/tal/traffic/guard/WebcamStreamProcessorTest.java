@@ -57,7 +57,7 @@ public class WebcamStreamProcessorTest {
         transcoder.transcode();
     }
 
-//    @Disabled
+    @Disabled
     @Test
     public void handleRequestTest() throws Exception {
         APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();
@@ -107,6 +107,7 @@ public class WebcamStreamProcessorTest {
         }
     }
 
+    @Disabled
     @Test
     public void fileNamePatternTest() {
         final String pattern = "img%03d.jpg";

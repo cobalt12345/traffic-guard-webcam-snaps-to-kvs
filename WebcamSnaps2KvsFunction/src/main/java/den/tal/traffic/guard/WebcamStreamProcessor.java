@@ -176,8 +176,6 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     Path convertImages(String jsonBody) throws IOException {
         if (jsonBody != null && !jsonBody.isEmpty()) {
             BodyPayload payload = gson.fromJson(jsonBody, BodyPayload.class);
-            int bufferSize = 0;
-            Rational rational = Rational.R(payload.getFrames().length, 1);
             Path tmpDir = Files.createTempDirectory("imgs");
             for (int i = 0; i < payload.getFrames().length; ++i) {
                 log.debug("Process image. Batch ordinal num: {}.", i);
