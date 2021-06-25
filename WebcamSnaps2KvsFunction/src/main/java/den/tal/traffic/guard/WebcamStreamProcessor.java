@@ -142,6 +142,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
     Path convertImagesToMkv(Path folder) throws IOException {
         final String fileNamePattern = "img%03d.jpg";
         final String locationMetadata = getLocation(folder, fileNamePattern);
+        log.debug("Location metadata: {}", locationMetadata);
         long numOfJpegFiles = Files.list(folder).count();
         String ffmpegPath = Utils.getPath2ffmpeg();
         log.debug("FFmpeg is installed in: {}", ffmpegPath);
@@ -154,6 +155,7 @@ public class WebcamStreamProcessor implements RequestHandler<APIGatewayProxyRequ
                 .setVideoResolution(Utils.getWidth(), Utils.getHeight());
 
         if (null != locationMetadata) {
+            log.debug("Add location '{}' to metadata...", locationMetadata);
             outputBuilder.addExtraArgs("-metadata", "location=".concat(locationMetadata));
         }
         outputBuilder.setFilename(mkvFile.toAbsolutePath().toString());
