@@ -1,3 +1,7 @@
+## Application Architecture
+
+![Traffic Guard Design](https://github.com/cobalt12345/traffic-guard-stream-producer/blob/d161fcbd2567cb9e1941576d7489ac7ecc13a9a5/src/main/resources/Traffic%20Guard%20Architecture.png)
+
 # traffic-guard-webcam-snaps-to-kvs
 
 This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
