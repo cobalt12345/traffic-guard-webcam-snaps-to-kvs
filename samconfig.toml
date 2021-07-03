@@ -8,4 +8,4 @@ s3_prefix = "WebcamSnaps2Kvs"
 region = "eu-central-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
-parameter_overrides = "ApiGatewayRoleName=\"TrafficGuardApiGateway\" SnapsToKvsFunctionRoleName=\"TrafficGuardSnapsToKvs\" Deployment=\"Stage\" KVSStreamName=\"traffic-guard\" KVSRegion=\"eu-central-1\" videoWidth=\"640\" videoHeight=\"480\" Path2FFmpeg=\"/opt/lib/ffmpeg\" CognitoUserPoolArn=\" arn:aws:cognito-idp:eu-central-1:469694857107:userpool/eu-central-1_Y5pDDpoOE\""
+parameter_overrides = "ApiGatewayRoleName=\"TrafficGuardApiGateway\" SnapsToKvsFunctionRoleName=\"TrafficGuardSnapsToKvs\" Deployment=\"Stage\" KVSStreamName=\"traffic-guard\" KVSRegion=\"eu-central-1\" videoWidth=\"1280\" videoHeight=\"720\" Path2FFmpeg=\"/opt/lib/ffmpeg\" CognitoUserPoolArn=\" arn:aws:cognito-idp:eu-central-1:469694857107:userpool/eu-central-1_Y5pDDpoOE\""
