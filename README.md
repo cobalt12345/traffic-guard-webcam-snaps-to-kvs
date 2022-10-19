@@ -11,6 +11,8 @@ Application requires signing up via setting up a new account or via your Google 
 ![Traffic Guard Design](https://github.com/cobalt12345/traffic-guard-stream-producer/blob/d161fcbd2567cb9e1941576d7489ac7ecc13a9a5/src/main/resources/Traffic%20Guard%20Architecture.png)
 
 ## See how it works
+<h1><span>&#9888;</span> Some AWS components are stopped to avoid additional expenses. Write me an e-mail, if you 
+want to get the full demonstration.</h1>
 <ul>
     <li>Streaming web application - <a href="https://www.dashcam.talochk.in/">https://www.dashcam.talochk.in</a></li>
     <li>Portal exposing results - <a href="https://www.cars.talochk.in/">https://www.cars.talochk.in/</a></li>
