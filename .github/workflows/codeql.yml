@@ -67,7 +67,7 @@ jobs:
     #  echo "Run, Build Application using script"
     - run: echo "Run, Build Application using script"|./gradlew
     
-    - run: echo "Check sources"|ls -lisa
+    - run: echo "Check sources"|ls -lisa|ls /home/runner/work/traffic-guard-webcam-snaps-to-kvs -lisa
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
