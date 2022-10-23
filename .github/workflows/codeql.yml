@@ -69,7 +69,7 @@ jobs:
     
     - run: echo "Check sources"|ls -lisa
     
-    - run: ls /home/runner/work -lisa
+    - run: ls /home/runner/work/_temp -lisa
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
