@@ -77,3 +77,4 @@ jobs:
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:${{matrix.language}}"
+        checkout_path: /home/runner/work/traffic-guard-webcam-snaps-to-kvs/traffic-guard-webcam-snaps-to-kvs/WebcamSnaps2KvsFunction
