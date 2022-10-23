@@ -67,14 +67,10 @@ jobs:
     #  echo "Run, Build Application using script"
     - run: echo "Run, Build Application using script"|./gradlew clean build
     
-    - run: echo "Check sources"|ls -lisa
-    
-    - run: ls /home/runner/work/_temp/codeql_databases -lisa
-    - run: ls /home/runner/work/_temp/codeql_databases/java -lisa
-    - run: ls /home/runner/work/traffic-guard-webcam-snaps-to-kvs -Rlisa
+    - run: echo "CodeQL Analysis is disabled. It should be somehow configured for AWS Lambdas."
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
-      with:
-        category: "/language:${{matrix.language}}"
-        checkout_path: /home/runner/work/traffic-guard-webcam-snaps-to-kvs/traffic-guard-webcam-snaps-to-kvs/WebcamSnaps2KvsFunction
+#     - name: Perform CodeQL Analysis
+#       uses: github/codeql-action/analyze@v2
+#       with:
+#         category: "/language:${{matrix.language}}"
+#         checkout_path: /home/runner/work/traffic-guard-webcam-snaps-to-kvs/traffic-guard-webcam-snaps-to-kvs/WebcamSnaps2KvsFunction
