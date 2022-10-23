@@ -66,6 +66,8 @@ jobs:
 
     #  echo "Run, Build Application using script"
     - run: echo "Run, Build Application using script"|./gradlew
+    
+    - run: echo "Check sources"|ls -lisa
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
