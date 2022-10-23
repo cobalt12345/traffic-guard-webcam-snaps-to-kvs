@@ -65,11 +65,11 @@ jobs:
     #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
 
     #  echo "Run, Build Application using script"
-    - run: echo "Run, Build Application using script"|./gradlew
+    - run: echo "Run, Build Application using script"|./gradlew clean build
     
-    - run: echo "Check sources"|ls -Rlisa
+    - run: echo "Check sources"|ls -lisa
     
-    - run: ls /home/runner/work -Rlisa
+    - run: ls /home/runner/work -lisa
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
