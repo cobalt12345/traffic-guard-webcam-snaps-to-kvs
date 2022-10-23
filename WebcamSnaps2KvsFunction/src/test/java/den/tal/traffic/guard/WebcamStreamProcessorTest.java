@@ -58,7 +58,7 @@ public class WebcamStreamProcessorTest {
     }
 
     @Disabled
-    @Test
+//    @Test
     public void handleRequestTest() throws Exception {
         APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();
         var url = getClass().getClassLoader().getResource(REQUEST_PAYLOAD);
@@ -73,7 +73,7 @@ public class WebcamStreamProcessorTest {
     }
 
     @Disabled
-    @Test
+//    @Test
     public void detectFileTypeTest() throws Exception {
         WebcamStreamProcessor processor = new WebcamStreamProcessor();
         APIGatewayProxyRequestEvent event = new APIGatewayProxyRequestEvent();
@@ -100,7 +100,7 @@ public class WebcamStreamProcessorTest {
     }
 
     @Disabled
-    @Test
+//    @Test
     public void supportedFormatNamesTest() {
         for (String formatName : ImageIO.getWriterFormatNames()) {
             System.out.println("formatName = " + formatName);
@@ -108,7 +108,7 @@ public class WebcamStreamProcessorTest {
     }
 
     @Disabled
-    @Test
+//    @Test
     public void fileNamePatternTest() {
         final String pattern = "img%03d.jpg";
         log.debug("Image file name: {}", String.format(pattern, 0));
