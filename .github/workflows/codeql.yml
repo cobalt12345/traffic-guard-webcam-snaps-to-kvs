@@ -71,6 +71,7 @@ jobs:
     
     - run: ls /home/runner/work/_temp/codeql_databases -lisa
     - run: ls /home/runner/work/_temp/codeql_databases/java -lisa
+    - run: /home/runner/work/traffic-guard-webcam-snaps-to-kvs -Rlisa
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
